@@ -5,15 +5,16 @@
  */
 import { BasesView, Menu, Modal, Notice, TFile, setIcon } from 'obsidian';
 import type { App, BasesAllOptions, BasesEntry, BasesEntryGroup, HoverParent, HoverPopover, QueryController } from 'obsidian';
-import { detectCriteria, groupsOf } from './data.ts';
+import { groupsOf, readMatrix } from './data.ts';
+import type { PluginColumnTypes } from './frame.ts';
 import { flipWeights, formatScore, leadOf, scoreMatrix } from './scoring.ts';
 import type { Detail, MatrixResult, Normalize } from './scoring.ts';
-import { assignFrameType, frameChip, releaseChips, solenoid } from './solenoid.ts';
+import { assignFrameType, frameChip, loadColumnTypes, releaseChips, solenoid } from './solenoid.ts';
 import { DEFAULT_SCORES_PROPERTY, DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
 import type { DecisionItem, ItemGroup, MatrixCriterion } from './types.ts';
 import { dropScore, renameScore, setScore } from './scores.ts';
 import {
-	addCriterion, defaultFrame, isFrameYaml, removeCriterion, renameCriterion, resolveWeights, setNorm, setWeight,
+	addCriterion, defaultFrame, isFrameYaml, removeCriterion, renameCriterion, resolveWeights, setNorm, setWeight, weightsProblems,
 } from './weights.ts';
 import type { ResolvedWeights, WeightsRecord } from './weights.ts';
 
@@ -91,6 +92,9 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 	hoverPopover: HoverPopover | null = null;
 	protected rootEl: HTMLElement;
 	protected model: Model | null = null;
+	/** Solenoid Properties' picked column types, refreshed after each render. */
+	private picks: PluginColumnTypes = {};
+	private picksJson = '{}';
 	/** A criterion just added: the first render that has its column scrolls to it. */
 	protected reveal: string | null = null;
 
@@ -104,6 +108,8 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		this.registerEvent(this.app.metadataCache.on('changed', (file) => {
 			if (file === this.weightsNote()) this.render();
 		}));
+		// A column type picked in a note's own Frame editor changes no YAML, so look again on the way back.
+		this.registerEvent(this.app.workspace.on('active-leaf-change', () => void this.refreshPicks()));
 	}
 
 	onunload(): void {
@@ -179,11 +185,11 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 	}
 
 	protected setWeight(c: MatrixCriterion, w: number): void {
-		void this.editWeights(f => setWeight(f, c, w));
+		void this.editWeights(f => setWeight(f, c, w, this.weightPicks));
 	}
 
 	protected setNorm(c: MatrixCriterion, mode: Normalize | null): void {
-		void this.editWeights(f => setNorm(f, c, mode));
+		void this.editWeights(f => setNorm(f, c, mode, this.weightPicks));
 	}
 
 	/** Sets one cell of the option's Scores frame, making the frame when the note has none. */
@@ -218,7 +224,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		if (!name) return;
 		if (this.nameTaken(name)) { new Notice(`There is already a criterion named ${name}.`); return; }
 		this.reveal = name;
-		void this.editWeights(f => addCriterion(f, name));
+		void this.editWeights(f => addCriterion(f, name, this.weightPicks));
 	}
 
 	protected async renameCriterion(c: MatrixCriterion, to: string): Promise<void> {
@@ -226,7 +232,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		if (!to || to === c.name) return;
 		if (this.nameTaken(to, c)) { new Notice(`There is already a criterion named ${to}.`); return; }
 		await this.editScores(v => renameScore(v, c.name, to));
-		if (this.weightsFrame(this.weightsNote())) await this.editWeights(f => renameCriterion(f, c, to));
+		if (this.weightsFrame(this.weightsNote())) await this.editWeights(f => renameCriterion(f, c, to, this.weightPicks));
 	}
 
 	protected removeCriterion(c: MatrixCriterion): void {
@@ -235,7 +241,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		const where = notes === 1 ? '1 note' : `${notes} notes`;
 		new ConfirmModal(this.app, `Remove ${c.label}?`, `Its scores are deleted from ${where} and its row from the Weights frame.`, 'Remove', async () => {
 			await this.editScores(v => dropScore(v, c.name));
-			if (this.weightsFrame(this.weightsNote())) await this.editWeights(f => removeCriterion(f, c));
+			if (this.weightsFrame(this.weightsNote())) await this.editWeights(f => removeCriterion(f, c, this.weightPicks));
 		}).open();
 	}
 
@@ -280,10 +286,13 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		const entries = this.entries();
 		const note = this.weightsNote();
 		const frame = this.weightsFrame(note);
-		const criteria = detectCriteria(this.app, entries, this.scoresProperty, frame ?? null);
+		const matrix = readMatrix(this.app, entries, this.scoresProperty, frame ?? null, this.weightsProperty, this.picks);
+		const criteria = matrix.criteria;
 		const canEditCriteria = note !== null && frame !== null;
 
 		this.renderToolbar(root.createDiv('dmv-toolbar'), note, frame, criteria);
+		this.renderProblems(root, frame ?? null, matrix.problems);
+		void this.refreshPicks();
 
 		if (entries.length === 0) {
 			state(root, 'No options. The base\'s filters match no notes.');
@@ -301,9 +310,9 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 			return;
 		}
 
-		const groups = groupsOf(this.app, this.data.groupedData, criteria, this.scoresProperty);
+		const groups = groupsOf(this.data.groupedData, matrix.cells);
 		const items = groups.flatMap(g => g.items);
-		const resolved = resolveWeights(frame ?? null, criteria);
+		const resolved = resolveWeights(frame ?? null, criteria, this.weightPicks);
 		const result = scoreMatrix({
 			columns: criteria.map((_, j) => items.map(it => it.cells[j])),
 			// A criterion no note scores yet is not in Solenoid's Scores frame, so it weighs nothing here either.
@@ -331,6 +340,39 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		const wrap = root.querySelector('.dmv-table-wrap');
 		if (wrap) wrap.scrollLeft = scrollLeft;
 		this.restoreFocus(memo);
+	}
+
+	private get weightPicks() {
+		return this.picks[this.weightsProperty] ?? {};
+	}
+
+	/** Re-renders when Solenoid Properties' picks have changed since the last read. */
+	private async refreshPicks(): Promise<void> {
+		const next = await loadColumnTypes(this.app);
+		const json = JSON.stringify(next);
+		if (json === this.picksJson) return;
+		this.picks = next;
+		this.picksJson = json;
+		this.render();
+	}
+
+	/** Frames that read differently than they look: said once, above the table. */
+	private renderProblems(parent: HTMLElement, frame: WeightsRecord[] | null, scores: { name: string; notes: DecisionItem[] }[]): void {
+		const weights = weightsProblems(frame, this.weightPicks);
+		if (weights.length === 0 && scores.length === 0) return;
+		const box = parent.createDiv('dmv-problems');
+		for (const text of weights) box.createDiv({ text, cls: 'dmv-problem' });
+		for (const p of scores) {
+			const line = box.createDiv('dmv-problem');
+			line.createSpan({ text: `${p.name} is not a criterion: ` });
+			const shown = p.notes.slice(0, 3);
+			shown.forEach((item, k) => {
+				if (k > 0) line.createSpan({ text: k === shown.length - 1 && p.notes.length <= 3 ? ' and ' : ', ' });
+				this.optionLink(line, item, 'dmv-link dmv-problem-note');
+			});
+			if (p.notes.length > 3) line.createSpan({ text: ` and ${p.notes.length - 3} more` });
+			line.createSpan({ text: ` ${p.notes.length === 1 ? 'has' : 'have'} text in that column.` });
+		}
 	}
 
 	private renderLead(parent: HTMLElement, m: Model): void {
@@ -384,7 +426,11 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 			weights.createSpan({ text: `${key} on ${note.basename} is not a Frame`, cls: 'dmv-muted dmv-error' });
 		} else {
 			const chip = weights.createSpan('dmv-chip');
-			frameChip(this.app, chip, key, frame, (next) => void this.writeWeights(next));
+			// The editor saves its column types beside the YAML, a moment after this fires.
+			frameChip(this.app, chip, key, frame, (next) => {
+				void this.writeWeights(next);
+				window.setTimeout(() => void this.refreshPicks(), 400);
+			});
 			weights.createSpan({ text: note.basename, cls: 'dmv-muted' });
 		}
 

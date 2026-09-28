@@ -3,8 +3,9 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { scoreMatrix, parseNormalize, flipWeights, leadOf } from '../src/scoring.ts';
 import type { Cell, Normalize } from '../src/scoring.ts';
-import { scoreColumns, scoreRow, cellsOf, setScore, withListed, renameScore, dropScore } from '../src/scores.ts';
-import { resolveWeights, setWeight, setNorm, defaultFrame, layoutOf, addCriterion, renameCriterion, removeCriterion, listedCriteria } from '../src/weights.ts';
+import { scoreColumns, scoreRow, scoreTable, setScore, withListed, renameScore, dropScore, scoreProblems } from '../src/scores.ts';
+import { toFrame, parsePluginColumnTypes, noteColumnType } from '../src/frame.ts';
+import { resolveWeights, setWeight, setNorm, defaultFrame, layoutOf, addCriterion, renameCriterion, removeCriterion, listedCriteria, weightsProblems } from '../src/weights.ts';
 
 // Options A, B, C; criteria quality and cost.
 const quality: Cell[] = [8, 6, 10];
@@ -114,8 +115,15 @@ describe('Weights frame', () => {
 		assert.deepEqual(layoutOf(frame), { criterionKey: 'name', weightKey: 'Value', normKey: null });
 	});
 
-	it('a non-number weight is 1', () => {
-		assert.deepEqual(resolveWeights([{ Criterion: 'cost', Weight: 2 }, { Criterion: 'battery', Weight: 'lots' }], criteria).weights, [2, 1, 1]);
+	it('one text cell makes Weight a text column, so every weight is 1, as in Solenoid', () => {
+		const frame = [{ Criterion: 'cost', Weight: 2 }, { Criterion: 'battery', Weight: 'lots' }];
+		assert.deepEqual(resolveWeights(frame, criteria).weights, [1, 1, 1]);
+		assert.deepEqual(weightsProblems(frame), ['The Weight column has text in it, so every weight counts as 1.']);
+		assert.deepEqual(weightsProblems([{ Criterion: 'cost', Order: 1, Weight: 'x' }]), ['The Weight column has text in it, so the weights come from Order.']);
+	});
+
+	it('a blank leading column is text, so it names the criteria, as in Solenoid', () => {
+		assert.equal(layoutOf([{ Note: null, Criterion: 'cost', Weight: 2 }]).criterionKey, 'Note');
 	});
 
 	it('no frame weighs everything 1', () => {
@@ -153,11 +161,21 @@ describe('Scores frame', () => {
 		]);
 	});
 
+	it('a column with a text cell is no criterion, and says why', () => {
+		const rows = [{ cost: 950, speed: 4 }, { cost: 'n/a', speed: true }, null];
+		assert.deepEqual(scoreColumns(rows), []);
+		assert.deepEqual(scoreProblems(rows), [
+			{ name: 'cost', notes: [1] },
+			{ name: 'speed', notes: [1] },
+		]);
+		assert.deepEqual(scoreProblems([{ vendor: 'Acme', released: '2026-01-02' }]), []);
+	});
+
 	it('reads a note\'s first row, and nothing from a non-frame', () => {
 		assert.deepEqual(scoreRow([{ a: 1 }, { a: 2 }]), { a: 1 });
 		assert.equal(scoreRow(5), null);
 		assert.equal(scoreRow([]), null);
-		assert.deepEqual(cellsOf({ a: 'x', b: false }, [{ name: 'a', logical: false }, { name: 'b', logical: true }, { name: 'c', logical: false }]), [null, false, null]);
+		assert.deepEqual(scoreTable([{ a: 1, b: false }, { a: null, b: true }]).cells, [[1, false], [null, true]]);
 	});
 
 	it('sets a cell, making a one-row frame when there is none', () => {
@@ -226,5 +244,43 @@ describe('criterion edits', () => {
 		assert.equal(renameScore([{ a: 1 }], 'cost', 'price'), null);
 		assert.deepEqual(dropScore([{ a: 1, cost: 2 }], 'cost'), [{ a: 1 }]);
 		assert.equal(dropScore('x', 'cost'), null);
+	});
+});
+
+describe('column types, as Solenoid reads a note Frame', () => {
+	it('guesses one family throughout, else text; blank is text', () => {
+		assert.equal(noteColumnType([1, null, 2.5]), 'number');
+		assert.equal(noteColumnType([true, false]), 'logical');
+		assert.equal(noteColumnType([1, true]), 'string');
+		assert.equal(noteColumnType(['2026-01-02', null]), 'date');
+		assert.equal(noteColumnType([null, '']), 'string');
+	});
+
+	it('a picked number column reads text digits and scores the unreadable as NaN', () => {
+		const rows = [{ cost: '12' }, { cost: '1,200' }, { cost: 'n/a' }, { cost: true }, null];
+		assert.deepEqual(scoreColumns(rows), []);
+		const t = scoreTable(rows, { cost: 'number' });
+		assert.deepEqual(t.columns, [{ name: 'cost', logical: false }]);
+		assert.deepEqual(t.cells.map(c => c[0]), [12, 1200, NaN, NaN, null]);
+		assert.deepEqual(scoreProblems(rows, { cost: 'number' }), []);
+		// NaN scores 0, as a non-finite cell does in Solenoid.
+		assert.deepEqual(scoreMatrix({ columns: [t.cells.map(c => c[0])], weights: [], norms: [], normalize: 'none' }).scores, [12, 1200, 0, 0, 0]);
+	});
+
+	it('a picked logical column reads true, false and numbers', () => {
+		assert.deepEqual(toFrame([{ f: 'TRUE' }, { f: 0 }, { f: 2 }, { f: 'maybe' }], { f: 'logical' })[0].values, [true, false, true, null]);
+	});
+
+	it('a picked Weight column of text digits weighs', () => {
+		const frame = [{ Criterion: 'cost', Weight: '-3' }, { Criterion: 'speed', Weight: '2' }];
+		const c = [{ name: 'cost', label: 'cost' }, { name: 'speed', label: 'speed' }];
+		assert.deepEqual(resolveWeights(frame, c).weights, [1, 1]);
+		assert.deepEqual(resolveWeights(frame, c, { Weight: 'number' }).weights, [-3, 2]);
+		assert.deepEqual(weightsProblems(frame, { Weight: 'number' }), []);
+	});
+
+	it('reads Solenoid Properties data.json picks, dropping anything else', () => {
+		assert.deepEqual(parsePluginColumnTypes({ columnTypes: { scores: { cost: 'number', x: 'banana' }, bad: 3, empty: {} }, look: true }), { scores: { cost: 'number' } });
+		assert.deepEqual(parsePluginColumnTypes(null), {});
 	});
 });

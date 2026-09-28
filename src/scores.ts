@@ -4,6 +4,8 @@
  * Matrix node takes: rows are options, and number and logical columns are the criteria. Text and
  * date columns are never criteria. No Obsidian imports, so `npm test` covers it.
  */
+import { toFrame } from './frame.ts';
+import type { ColumnPicks, FrameCell } from './frame.ts';
 import type { Cell } from './scoring.ts';
 import { isFrameYaml } from './weights.ts';
 import type { WeightsRecord } from './weights.ts';
@@ -20,33 +22,30 @@ export function scoreRow(value: unknown): WeightsRecord | null {
 	return isFrameYaml(value) && value.length > 0 ? value[0] : null;
 }
 
-/**
- * The criteria across every note's row, in first-appearance order. A column's type is its first
- * filled cell's, the way a Frame guesses a note column: a number or a checkbox makes it a criterion.
- */
-export function scoreColumns(rows: (WeightsRecord | null)[]): ScoreColumn[] {
-	const order: string[] = [];
-	const kind = new Map<string, 'number' | 'logical' | 'other'>();
-	for (const row of rows) {
-		if (!row) continue;
-		for (const [key, v] of Object.entries(row)) {
-			if (!order.includes(key)) order.push(key);
-			if (kind.has(key) || v === null || v === undefined || v === '') continue;
-			if (typeof v === 'number') kind.set(key, 'number');
-			else if (typeof v === 'boolean') kind.set(key, 'logical');
-			else kind.set(key, 'other');
-		}
-	}
-	return order
-		.filter(k => kind.get(k) === 'number' || kind.get(k) === 'logical')
-		.map(name => ({ name, logical: kind.get(name) === 'logical' }));
+export interface ScoreTable {
+	columns: ScoreColumn[];
+	/** Per row given, one cell per column. */
+	cells: Cell[][];
 }
 
-export function cellsOf(row: WeightsRecord | null, columns: ScoreColumn[]): Cell[] {
-	return columns.map(c => {
-		const v = row?.[c.name];
-		return typeof v === 'number' || typeof v === 'boolean' ? v : null;
-	});
+const asCell = (v: FrameCell): Cell => (typeof v === 'number' || typeof v === 'boolean' ? v : null);
+
+/**
+ * Every note's row stacked into one Frame and typed the way Solenoid types it, picks first: the
+ * number and logical columns are the criteria, in first-appearance order. One text cell in a column
+ * of numbers makes it a text column there, so it is no criterion here either; a picked number column
+ * reads such a cell as NaN, which scores 0.
+ */
+export function scoreTable(rows: (WeightsRecord | null)[], picks: ColumnPicks = {}): ScoreTable {
+	const frame = toFrame(rows, picks).filter(c => c.type === 'number' || c.type === 'logical');
+	return {
+		columns: frame.map(c => ({ name: c.name, logical: c.type === 'logical' })),
+		cells: rows.map((_, i) => frame.map(c => asCell(c.values[i]))),
+	};
+}
+
+export function scoreColumns(rows: (WeightsRecord | null)[], picks: ColumnPicks = {}): ScoreColumn[] {
+	return scoreTable(rows, picks).columns;
 }
 
 /** The note's Scores frame with one cell set; a missing or empty frame becomes a one-row frame. */
@@ -83,4 +82,19 @@ export function renameScore(value: unknown, from: string, to: string): WeightsRe
 export function dropScore(value: unknown, key: string): WeightsRecord[] | null {
 	if (!isFrameYaml(value) || !value.some(r => key in r)) return null;
 	return value.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => k !== key)));
+}
+
+/**
+ * Columns that look like criteria but are not: mostly numbers or checkboxes with a text cell (or a
+ * mix of the two) in some note, which makes the stacked column text. Each names the rows at fault.
+ */
+export function scoreProblems(rows: (WeightsRecord | null)[], picks: ColumnPicks = {}): { name: string; notes: number[] }[] {
+	const scoreLike = (v: unknown) => typeof v === 'number' || typeof v === 'boolean';
+	return toFrame(rows, picks).flatMap(({ name, type }) => {
+		const values = rows.map(r => r?.[name]);
+		if (type !== 'string' || !values.some(scoreLike)) return [];
+		const majority = values.filter(v => typeof v === 'number').length >= values.filter(v => typeof v === 'boolean').length ? 'number' : 'boolean';
+		const notes = values.flatMap((v, i) => (v === null || v === undefined || v === '' || typeof v === majority ? [] : [i]));
+		return [{ name, notes }];
+	});
 }

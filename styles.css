@@ -565,6 +565,20 @@ body .dmv-root button.dmv-text-btn:not(.clickable-icon):not(.mod-cta):not(.mod-w
 .dmv-root .dmv-lead .dmv-lead-name { color: var(--sol-text-bright); font-weight: 600; }
 .dmv-lead-margin { font-family: var(--font-monospace); color: var(--sol-text); }
 
+.dmv-problems {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 5px 8px;
+	font-size: 11px;
+	color: var(--sol-ink-amber);
+	border: 1px solid color-mix(in srgb, var(--sol-amber) var(--sol-mix-hairline), var(--sol-border));
+	border-radius: 4px;
+	text-wrap-style: pretty;
+}
+
+.dmv-root .dmv-problems .dmv-problem-note { color: inherit; text-decoration: underline; text-decoration-color: currentColor; }
+
 .dmv-state-action { margin-top: 8px; }
 
 /* ── Phone ───────────────────────────────────────────────── */

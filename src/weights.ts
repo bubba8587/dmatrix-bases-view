@@ -9,6 +9,8 @@
  * Solenoid Properties saves a Frame as block YAML, a list of records, so that is what this reads
  * and writes. No Obsidian imports, so `npm test` covers it.
  */
+import { toFrame } from './frame.ts';
+import type { ColumnPicks, FrameCell, FrameColumn } from './frame.ts';
 import { parseNormalize, NORM_TEXT } from './scoring.ts';
 import type { Normalize } from './scoring.ts';
 
@@ -35,44 +37,30 @@ export function isFrameYaml(v: unknown): v is WeightsRecord[] {
 	return Array.isArray(v) && v.every(isRecord);
 }
 
-function keysOf(records: WeightsRecord[]): string[] {
-	const keys: string[] = [];
-	for (const rec of records) for (const k of Object.keys(rec)) if (!keys.includes(k)) keys.push(k);
-	return keys;
-}
-
-/** A column's type is its first non-blank cell's, the way a Frame guesses a note column. */
-function columnType(records: WeightsRecord[], key: string): 'string' | 'number' | 'logical' | 'blank' {
-	for (const rec of records) {
-		const v = rec[key];
-		if (v === null || v === undefined || v === '') continue;
-		if (typeof v === 'number') return 'number';
-		if (typeof v === 'boolean') return 'logical';
-		return 'string';
-	}
-	return 'blank';
-}
-
 export interface WeightsLayout {
 	criterionKey: string | null;
 	weightKey: string | null;
 	normKey: string | null;
 }
 
-export function layoutOf(records: WeightsRecord[]): WeightsLayout {
-	const keys = keysOf(records);
-	const criterionKey = keys.find(k => columnType(records, k) === 'string') ?? null;
-	const nums = keys.filter(k => columnType(records, k) === 'number');
-	const weightKey = nums.find(k => ['weight', 'weights', 'value'].includes(critKey(k))) ?? nums[0] ?? null;
-	const normKey = keys.find(k => k !== criterionKey && critKey(k) === 'norm') ?? null;
-	return { criterionKey, weightKey, normKey };
+/** Solenoid's reading of the frame's columns: the first text column names, the weight is a number column. */
+function layoutOfFrame(cols: FrameColumn[]): WeightsLayout {
+	const criterion = cols.find(c => c.type === 'string') ?? null;
+	const nums = cols.filter(c => c.type === 'number');
+	const weight = nums.find(c => ['weight', 'weights', 'value'].includes(critKey(c.name))) ?? nums[0] ?? null;
+	const norm = cols.find(c => c !== criterion && critKey(c.name) === 'norm') ?? null;
+	return { criterionKey: criterion?.name ?? null, weightKey: weight?.name ?? null, normKey: norm?.name ?? null };
 }
 
-function rowIndex(records: WeightsRecord[], criterionKey: string | null): Map<string, number> {
+export function layoutOf(records: WeightsRecord[], picks: ColumnPicks = {}): WeightsLayout {
+	return layoutOfFrame(toFrame(records, picks));
+}
+
+/** Criterion name → first row naming it, from the typed criterion column. */
+function rowIndex(cols: FrameColumn[], criterionKey: string | null): Map<string, number> {
 	const m = new Map<string, number>();
-	if (!criterionKey) return m;
-	records.forEach((rec, i) => {
-		const v = rec[criterionKey];
+	const col = cols.find(c => c.name === criterionKey);
+	col?.values.forEach((v, i) => {
 		if (typeof v === 'string') {
 			const k = critKey(v);
 			if (k && !m.has(k)) m.set(k, i);
@@ -86,19 +74,22 @@ function rowOf(index: Map<string, number>, c: Criterion): number | undefined {
 	return index.get(critKey(c.name)) ?? index.get(critKey(c.label));
 }
 
-const numOrNull = (v: unknown): number | null =>
+const numOrNull = (v: FrameCell): number | null =>
 	typeof v === 'number' && Number.isFinite(v) ? v : typeof v === 'boolean' ? (v ? 1 : 0) : null;
 
-export function resolveWeights(frame: WeightsRecord[] | null, criteria: Criterion[]): ResolvedWeights {
+export function resolveWeights(frame: WeightsRecord[] | null, criteria: Criterion[], picks: ColumnPicks = {}): ResolvedWeights {
 	if (!frame) {
 		return { weights: criteria.map(() => 1), norms: criteria.map(() => null), listed: criteria.map(() => false) };
 	}
-	const layout = layoutOf(frame);
-	const index = rowIndex(frame, layout.criterionKey);
+	const cols = toFrame(frame, picks);
+	const layout = layoutOfFrame(cols);
+	const index = rowIndex(cols, layout.criterionKey);
+	const weightCol = cols.find(c => c.name === layout.weightKey);
+	const normCol = cols.find(c => c.name === layout.normKey);
 	const rows = criteria.map(c => rowOf(index, c));
 	return {
-		weights: rows.map(r => (r != null && layout.weightKey ? numOrNull(frame[r][layout.weightKey]) : null) ?? 1),
-		norms: rows.map(r => (r != null && layout.normKey ? parseNormalize(frame[r][layout.normKey]) : null)),
+		weights: rows.map(r => (r != null && weightCol ? numOrNull(weightCol.values[r]) : null) ?? 1),
+		norms: rows.map(r => (r != null && normCol ? parseNormalize(normCol.values[r]) : null)),
 		listed: rows.map(r => r != null),
 	};
 }
@@ -115,53 +106,73 @@ function setCell(
 	pick: (layout: WeightsLayout) => string | null,
 	fallbackKey: string,
 	value: unknown,
+	picks: ColumnPicks,
 ): WeightsRecord[] {
-	const layout = layoutOf(frame);
+	const cols = toFrame(frame, picks);
+	const layout = layoutOfFrame(cols);
 	const criterionKey = layout.criterionKey ?? 'Criterion';
 	const key = pick(layout) ?? fallbackKey;
 	const out = frame.map(rec => ({ ...rec }));
-	const r = rowOf(rowIndex(out, criterionKey), c);
+	const r = rowOf(rowIndex(cols, criterionKey), c);
 	if (r != null) out[r][key] = value;
 	else out.push({ [criterionKey]: c.name, [key]: value });
 	return out;
 }
 
-export function setWeight(frame: WeightsRecord[], c: Criterion, weight: number): WeightsRecord[] {
-	return setCell(frame, c, l => l.weightKey, 'Weight', weight);
+export function setWeight(frame: WeightsRecord[], c: Criterion, weight: number, picks: ColumnPicks = {}): WeightsRecord[] {
+	return setCell(frame, c, l => l.weightKey, 'Weight', weight, picks);
 }
 
-export function setNorm(frame: WeightsRecord[], c: Criterion, mode: Normalize | null): WeightsRecord[] {
-	return setCell(frame, c, l => l.normKey, 'Norm', mode ? NORM_TEXT[mode] : null);
+export function setNorm(frame: WeightsRecord[], c: Criterion, mode: Normalize | null, picks: ColumnPicks = {}): WeightsRecord[] {
+	return setCell(frame, c, l => l.normKey, 'Norm', mode ? NORM_TEXT[mode] : null, picks);
 }
 
 /** Every criterion the frame names, in row order. */
-export function listedCriteria(frame: WeightsRecord[] | null): string[] {
+export function listedCriteria(frame: WeightsRecord[] | null, picks: ColumnPicks = {}): string[] {
 	if (!frame) return [];
-	const { criterionKey } = layoutOf(frame);
-	if (!criterionKey) return [];
-	return frame.flatMap(r => (typeof r[criterionKey] === 'string' ? [r[criterionKey] as string] : []));
+	const cols = toFrame(frame, picks);
+	const col = cols.find(c => c.name === layoutOfFrame(cols).criterionKey);
+	return col ? col.values.flatMap(v => (typeof v === 'string' ? [v] : [])) : [];
 }
 
 /** Adds a row for a new criterion; the frame is created when there is none. */
-export function addCriterion(frame: WeightsRecord[], name: string): WeightsRecord[] {
+export function addCriterion(frame: WeightsRecord[], name: string, picks: ColumnPicks = {}): WeightsRecord[] {
 	if (frame.length === 0) return [{ Criterion: name, Weight: 1, Norm: null }];
-	const layout = layoutOf(frame);
+	const layout = layoutOf(frame, picks);
 	const row: WeightsRecord = { [layout.criterionKey ?? 'Criterion']: name, [layout.weightKey ?? 'Weight']: 1 };
 	if (layout.normKey) row[layout.normKey] = null;
 	return [...frame, row];
 }
 
 /** Renames a criterion's row; returns the frame unchanged when it has no row for it. */
-export function renameCriterion(frame: WeightsRecord[], c: Criterion, to: string): WeightsRecord[] {
-	const { criterionKey } = layoutOf(frame);
+export function renameCriterion(frame: WeightsRecord[], c: Criterion, to: string, picks: ColumnPicks = {}): WeightsRecord[] {
+	const cols = toFrame(frame, picks);
+	const { criterionKey } = layoutOfFrame(cols);
 	if (!criterionKey) return frame;
-	const r = rowOf(rowIndex(frame, criterionKey), c);
+	const r = rowOf(rowIndex(cols, criterionKey), c);
 	return frame.map((rec, i) => (i === r ? { ...rec, [criterionKey]: to } : rec));
 }
 
 /** Drops a criterion's row. */
-export function removeCriterion(frame: WeightsRecord[], c: Criterion): WeightsRecord[] {
-	const { criterionKey } = layoutOf(frame);
-	const r = criterionKey ? rowOf(rowIndex(frame, criterionKey), c) : undefined;
+export function removeCriterion(frame: WeightsRecord[], c: Criterion, picks: ColumnPicks = {}): WeightsRecord[] {
+	const cols = toFrame(frame, picks);
+	const { criterionKey } = layoutOfFrame(cols);
+	const r = criterionKey ? rowOf(rowIndex(cols, criterionKey), c) : undefined;
 	return r == null ? frame : frame.filter((_, i) => i !== r);
+}
+
+/** What in a Weights frame makes it read differently than it looks, in the words the view shows. */
+export function weightsProblems(frame: WeightsRecord[] | null, picks: ColumnPicks = {}): string[] {
+	if (!frame || frame.length === 0) return [];
+	const out: string[] = [];
+	const cols = toFrame(frame, picks);
+	const layout = layoutOfFrame(cols);
+	const named = cols.find(c => ['weight', 'weights', 'value'].includes(critKey(c.name)));
+	if (named && named.type !== 'number' && named.values.some(v => v !== null)) {
+		out.push(layout.weightKey
+			? `The ${named.name} column has text in it, so the weights come from ${layout.weightKey}.`
+			: `The ${named.name} column has text in it, so every weight counts as 1.`);
+	}
+	if (!layout.criterionKey) out.push('No text column names the criteria, so every weight counts as 1.');
+	return out;
 }

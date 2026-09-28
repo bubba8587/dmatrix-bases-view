@@ -584,6 +584,25 @@ body .dmv-root button.dmv-text-btn:not(.clickable-icon):not(.mod-cta):not(.mod-w
 
 /* ── Phone ───────────────────────────────────────────────── */
 
-.is-phone .dmv-weights { margin-left: 0; width: 100%; }
-.is-phone .dmv-ranking { grid-template-columns: auto minmax(0, 1fr) auto; }
-.is-phone .dmv-track { display: none; }
+.is-phone .dmv-weights { margin-left: 0; }
+
+/* Each ranking row is its own small grid: rank, name and score on a line, the bar full width under them. */
+.is-phone .dmv-ranking { display: flex; flex-direction: column; align-items: stretch; }
+.is-phone .dmv-rank-row {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	column-gap: 10px;
+	padding: 6px 10px 2px;
+	border-bottom: 1px solid var(--dmv-hairline);
+}
+.is-phone .dmv-rank-row:last-child { border-bottom: none; }
+.is-phone .dmv-rank-row > * { padding: 0; border-bottom: none; }
+.is-phone .dmv-rank-row > :first-child { padding-left: 0; }
+.is-phone .dmv-rank-row > :last-child { padding-right: 0; }
+.is-phone .dmv-track { grid-column: 1 / -1; grid-row: 2; height: 20px; }
+.is-phone .dmv-track::before { inset: 7px 0; }
+.is-phone .dmv-bar,
+.is-phone .dmv-seg-bar { top: 7px; bottom: 7px; }
+.is-phone .dmv-zero { top: 3px; bottom: 3px; }
+.is-phone .dmv-rank-row.is-top { box-shadow: inset 2px 0 0 var(--sol-emphasis); background: transparent; }
+.is-phone .dmv-rank-row.is-top > * { box-shadow: none; }

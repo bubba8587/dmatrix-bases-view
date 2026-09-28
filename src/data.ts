@@ -41,7 +41,7 @@ export function readMatrix(
 	return { criteria, cells };
 }
 
-export function groupsOf(groupedData: BasesEntryGroup[], cells: MatrixData['cells']): ItemGroup[] {
+export function groupsOf(groupedData: Pick<BasesEntryGroup, 'key' | 'hasKey' | 'entries'>[], cells: MatrixData['cells']): ItemGroup[] {
 	return groupedData.map(g => ({
 		key: g.hasKey() ? String(g.key) : '',
 		items: g.entries.map((e): DecisionItem => ({

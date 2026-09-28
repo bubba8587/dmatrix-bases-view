@@ -163,8 +163,17 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		return isFrameYaml(v) ? v : null;
 	}
 
+	/** The options: the base's notes. Another file in the results (an image, the .base itself) has no frontmatter for a Scores frame. */
 	private entries(): BasesEntry[] {
-		return this.data?.groupedData.flatMap((g: BasesEntryGroup) => g.entries) ?? [];
+		return this.groupedData().flatMap(g => g.entries);
+	}
+
+	private groupedData(): { key: BasesEntryGroup['key']; hasKey: () => boolean; entries: BasesEntry[] }[] {
+		return (this.data?.groupedData ?? []).map((g: BasesEntryGroup) => ({
+			key: g.key,
+			hasKey: () => g.hasKey(),
+			entries: g.entries.filter(e => e.file.extension === 'md'),
+		}));
 	}
 
 	// ── Writes ────────────────────────────────────────────────
@@ -335,7 +344,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 			return;
 		}
 
-		const groups = groupsOf(this.data.groupedData, matrix.cells);
+		const groups = groupsOf(this.groupedData(), matrix.cells);
 		const items = groups.flatMap(g => g.items);
 		const resolved = resolveWeights(frame ?? null, criteria, this.weightPicks);
 		const result = scoreMatrix({

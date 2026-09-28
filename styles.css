@@ -17,6 +17,8 @@
 	--dmv-series-5: var(--sol-table);
 	--dmv-series-6: var(--sol-frame);
 	--dmv-series-7: var(--sol-teal);
+	--dmv-series-8: var(--sol-blue);
+	--dmv-series-9: var(--sol-logical);
 
 	display: flex;
 	flex-direction: column;
@@ -424,6 +426,12 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 .dmv-series-5 { --dmv-series: var(--dmv-series-5); }
 .dmv-series-6 { --dmv-series: var(--dmv-series-6); }
 .dmv-series-7 { --dmv-series: var(--dmv-series-7); }
+.dmv-series-8 { --dmv-series: var(--dmv-series-8); }
+.dmv-series-9 { --dmv-series: var(--dmv-series-9); }
+.dmv-root .is-alt { --dmv-series-shade: color-mix(in srgb, var(--dmv-series) 50%, var(--sol-text-bright)); }
+.dmv-swatch.is-alt,
+.dmv-seg-bar.is-alt:not(.is-negative) { background: var(--dmv-series-shade); }
+.dmv-seg-bar.is-alt.is-negative { background: repeating-linear-gradient(135deg, var(--dmv-series-shade) 0 3px, color-mix(in srgb, var(--dmv-series-shade) 45%, var(--sol-surface)) 3px 6px); }
 
 /* Score stays pinned to the right edge while the criteria scroll under it. */
 .dmv-root .dmv-table .dmv-th-score,

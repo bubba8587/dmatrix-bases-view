@@ -8,7 +8,9 @@ import { formatScore } from './scoring.ts';
 import { DecisionView, rankText } from './view.ts';
 import type { Model } from './view.ts';
 
-const SERIES = 8;
+const SERIES = 10;
+/** A criterion's color: past the tenth, the same hues again in a lighter shade. */
+const series = (j: number) => `dmv-series-${j % SERIES}${Math.floor(j / SERIES) % 2 ? ' is-alt' : ''}`;
 
 export class DecisionMatrixRankingsView extends DecisionView {
 	type = 'decision-matrix-rankings';
@@ -41,7 +43,7 @@ export class DecisionMatrixRankingsView extends DecisionView {
 			const legend = body.createDiv('dmv-legend');
 			m.criteria.forEach((c, j) => {
 				const key = legend.createSpan('dmv-legend-item');
-				key.createSpan({ cls: `dmv-swatch dmv-series-${j % SERIES}` });
+				key.createSpan({ cls: `dmv-swatch ${series(j)}` });
 				key.createSpan({ text: c.label });
 			});
 		}
@@ -61,7 +63,7 @@ export class DecisionMatrixRankingsView extends DecisionView {
 					const v = col[i];
 					if (v === 0) return;
 					const seg = track.createDiv({
-						cls: `dmv-seg-bar dmv-series-${j % SERIES}${v < 0 ? ' is-negative' : ''}`,
+						cls: `dmv-seg-bar ${series(j)}${v < 0 ? ' is-negative' : ''}`,
 						attr: { title: m.criteria[j].label },
 					});
 					if (v > 0) { seg.style.left = pct(right); right += v; }

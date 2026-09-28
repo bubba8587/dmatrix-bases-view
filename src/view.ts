@@ -7,7 +7,7 @@ import { BasesView, Menu, Modal, Notice, TFile, setIcon } from 'obsidian';
 import type { App, BasesAllOptions, BasesEntry, BasesEntryGroup, HoverParent, HoverPopover, QueryController } from 'obsidian';
 import { groupsOf, readMatrix } from './data.ts';
 import type { ColumnPicks, ColumnType, PluginColumnTypes } from './frame.ts';
-import { flipWeights, formatScore, leadOf, scoreMatrix } from './scoring.ts';
+import { fillBlanks, flipWeights, formatScore, leadOf, scoreMatrix } from './scoring.ts';
 import type { Detail, MatrixResult, Normalize } from './scoring.ts';
 import { assignFrameType, frameChip, loadColumnTypes, recordColumnTypes, releaseChips, solenoid } from './solenoid.ts';
 import { DEFAULT_SCORES_PROPERTY, DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
@@ -81,6 +81,9 @@ export interface Model {
 	resolved: ResolvedWeights;
 	/** Per criterion, the weight at which first place changes hands. */
 	flips: (number | null)[];
+	/** Per criterion, the median a blank scores as (null when none is filled), and which cells it fills. */
+	medians: (number | null)[];
+	filled: boolean[][];
 	detail: Detail;
 	/** Whether criteria can be added, renamed and weighed (there is a Weights note with a frame or room for one). */
 	canEditCriteria: boolean;
@@ -349,8 +352,9 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		const groups = groupsOf(this.groupedData(), matrix.cells);
 		const items = groups.flatMap(g => g.items);
 		const resolved = resolveWeights(frame ?? null, criteria, this.weightPicks);
+		const blanks = fillBlanks(criteria.map((_, j) => items.map(it => it.cells[j])), criteria.map(c => c.logical));
 		const result = scoreMatrix({
-			columns: criteria.map((_, j) => items.map(it => it.cells[j])),
+			columns: blanks.columns,
 			// A criterion no note scores yet is not in Solenoid's Scores frame, so it weighs nothing here either.
 			weights: resolved.weights.map((w, j) => (criteria[j].pending ? 0 : w)),
 			norms: resolved.norms,
@@ -360,6 +364,8 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		this.model = {
 			criteria, groups, items, result, row, resolved,
 			flips: flipWeights(result),
+			medians: blanks.medians,
+			filled: blanks.filled,
 			detail: this.detail,
 			canEditCriteria,
 			editing: memo?.key.startsWith('cell|') ?? false,

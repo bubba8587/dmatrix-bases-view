@@ -1,7 +1,7 @@
 // Mirrors solenoid tests/graph/decisionMatrix.test.ts, so the view and the node rank alike.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { scoreMatrix, parseNormalize, flipWeights, leadOf } from '../src/scoring.ts';
+import { scoreMatrix, parseNormalize, flipWeights, leadOf, fillBlanks } from '../src/scoring.ts';
 import type { Cell, Normalize } from '../src/scoring.ts';
 import { scoreColumns, scoreRow, scoreTable, setScore, withListed, renameScore, dropScore } from '../src/scores.ts';
 import { toFrame, parsePluginColumnTypes, noteColumnType } from '../src/frame.ts';
@@ -283,5 +283,35 @@ describe('column types, as Solenoid reads a note Frame', () => {
 	it('reads Solenoid Properties data.json picks, dropping anything else', () => {
 		assert.deepEqual(parsePluginColumnTypes({ columnTypes: { scores: { cost: 'number', x: 'banana' }, bad: 3, empty: {} }, look: true }), { scores: { cost: 'number' } });
 		assert.deepEqual(parsePluginColumnTypes(null), {});
+	});
+});
+
+describe('fillBlanks', () => {
+	it('scores a blank or unreadable number as the criterion median, of the raw values', () => {
+		const f = fillBlanks([[800, null, 1200, NaN, 950]], [false]);
+		assert.deepEqual(f.medians, [950]);
+		assert.deepEqual(f.columns, [[800, 950, 1200, 950, 950]]);
+		assert.deepEqual(f.filled, [[false, true, false, true, false]]);
+	});
+
+	it('takes the middle two for an even count, and leaves checkboxes and full columns alone', () => {
+		const f = fillBlanks([[1, 2, 3, 10, null], [true, null], [4, 5]], [false, true, false]);
+		assert.deepEqual(f.medians, [2.5, null, null]);
+		assert.deepEqual(f.columns[1], [true, null]);
+		assert.deepEqual(f.filled[2], [false, false]);
+	});
+
+	it('an unscored option is neither rewarded nor penalized on a lower-is-better criterion', () => {
+		// cost weighs -1: with a blank as 0, the unpriced option would look cheapest and win.
+		const cost: Cell[] = [800, 1200, null], quality: Cell[] = [5, 5, 5];
+		const asZero = scoreMatrix({ columns: [cost, quality], weights: [-1, 1], norms: [], normalize: 'max' });
+		assert.equal(asZero.ranks[2], 1);
+		const filled = fillBlanks([cost, quality], [false, false]);
+		const asMedian = scoreMatrix({ columns: filled.columns, weights: [-1, 1], norms: [], normalize: 'max' });
+		assert.deepEqual(asMedian.ranks, [1, 3, 2]);
+	});
+
+	it('a column nobody has scored fills nothing', () => {
+		assert.deepEqual(fillBlanks([[null, null]], [false]), { columns: [[null, null]], medians: [null], filled: [[false, false]] });
 	});
 });

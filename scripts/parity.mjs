@@ -9,7 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { scoreTable } from "../src/scores.ts";
 import { resolveWeights } from "../src/weights.ts";
-import { scoreMatrix } from "../src/scoring.ts";
+import { fillBlanks, scoreMatrix } from "../src/scoring.ts";
 
 const SOLENOID = path.resolve(process.env.SOLENOID ?? "../solenoid");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "dm-parity-"));
@@ -82,12 +82,22 @@ for (let t = 0; t < N; t++) {
   const weightPicks = chance(0.2) ? { [wKey]: "number" } : {};
   const normalize = pick(["none", "max", "rank"]);
   const resolved = resolveWeights(wRows.length ? wRows : null, crit, weightPicks);
-  const mine = scoreMatrix({ columns: crit.map((_, j) => table.cells.map((c) => c[j])), weights: resolved.weights, norms: resolved.norms, normalize });
+  const filled = fillBlanks(crit.map((_, j) => table.cells.map((c) => c[j])), table.columns.map((c) => c.logical));
+  const mine = scoreMatrix({ columns: filled.columns, weights: resolved.weights, norms: resolved.norms, normalize });
 
   // Solenoid: the stacked Scores frame with a label column first, then the Weights frame.
   const labels = rows.map((_, i) => `opt${i}`);
   const sf = rowsToFrame(rows.map((r, i) => ({ __label: labels[i], ...r })), scorePicks);
   const solCrit = sol.decisionCriteria(sf);
+  // The plugin scores a blank number as its criterion's median, where Solenoid scores 0: fill Solenoid's
+  // blanks the same way first (an independent median), so the rest of the rules are compared exactly.
+  for (const col of sf.columns) {
+    if (col.type !== "number" || !solCrit.includes(col.name)) continue;
+    const v = col.values.filter((x) => typeof x === "number" && Number.isFinite(x)).sort((a, b) => a - b);
+    if (!v.length) continue;
+    const med = v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
+    col.values = col.values.map((x) => (typeof x === "number" && Number.isFinite(x) ? x : x === null || typeof x === "number" ? med : x));
+  }
   const wf = wRows.length ? rowsToFrame(wRows, weightPicks) : null;
   const { weights, normOverrides } = sol.resolveDecisionWeights(wf, solCrit);
   cases++;

@@ -206,9 +206,10 @@ export class DecisionMatrixView extends DecisionView {
 			const td = tr.createEl('td', { cls: 'dmv-td dmv-td-num' });
 			if (m.detail === 'breakdown') {
 				const contribution = m.result.contributions[j][i];
-				td.createDiv({ text: formatScore(contribution), cls: contribution < 0 ? 'dmv-contrib is-negative' : 'dmv-contrib' });
+				const cls = `dmv-contrib${contribution < 0 ? ' is-negative' : ''}${m.filled[j][i] ? ' is-filled' : ''}`;
+				td.createDiv({ text: formatScore(contribution), cls });
 			}
-			this.renderValue(td, item, c, j);
+			this.renderValue(td, item, c, j, m.medians[j]);
 		});
 
 		const score = tr.createEl('td', { cls: 'dmv-td dmv-td-num dmv-td-score' });
@@ -219,7 +220,7 @@ export class DecisionMatrixView extends DecisionView {
 		fill.style.width = `${maxAbs > 0 ? (Math.abs(s) / maxAbs) * 100 : 0}%`;
 	}
 
-	private renderValue(td: HTMLElement, item: DecisionItem, c: MatrixCriterion, j: number): void {
+	private renderValue(td: HTMLElement, item: DecisionItem, c: MatrixCriterion, j: number, median: number | null): void {
 		const cell = item.cells[j];
 		const sub = td.hasChildNodes();
 		if (c.logical) {
@@ -230,7 +231,8 @@ export class DecisionMatrixView extends DecisionView {
 		}
 		// A value the number column cannot read is ignored: it scores as blank, and shows as written.
 		const ignored = typeof cell === 'number' && Number.isNaN(cell);
-		const cls = `dmv-input dmv-value-input${sub ? ' is-sub' : ''}${cell === null ? ' is-blank' : ''}${ignored ? ' is-ignored' : ''}`;
+		// A blank shows the median it scores as, dimmed and never saved; typing a value replaces it.
+		const cls = `dmv-input dmv-value-input${sub ? ' is-sub' : ''}${cell === null ? ' is-blank' : ''}${ignored ? ' is-ignored' : ''}${cell === null && median !== null ? ' is-median' : ''}`;
 		const input = draftInput(td, cls, cell === null ? '' : ignored ? item.raw[j] : String(cell), (next) => {
 			if (next === '') { void this.writeCell(item, c, null); return; }
 			const n = Number(next);
@@ -238,9 +240,10 @@ export class DecisionMatrixView extends DecisionView {
 			else this.render();
 		}, {
 			'aria-label': `${c.label} of ${item.title}`,
-			placeholder: '0',
+			placeholder: median === null ? '' : formatScore(median),
 			'data-dmv-key': cellKey(item, c),
-			...(ignored ? { title: 'Not a number, so it counts as blank' } : {}),
+			...(ignored ? { title: median === null ? 'Not a number, so it is not scored' : 'Not a number, so it scores as this criterion\'s median' } : {}),
+			...(cell === null && median !== null ? { title: 'Blank, so it scores as this criterion\'s median' } : {}),
 		});
 		input.addEventListener('keydown', (e) => {
 			const down = e.key === 'Enter' || e.key === 'ArrowDown';

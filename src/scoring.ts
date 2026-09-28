@@ -150,3 +150,40 @@ export function leadOf(result: MatrixResult): { leaders: number[]; margin: numbe
 	const second = rest.length ? Math.max(...rest) : null;
 	return { leaders, margin: top !== null && second !== null && leaders.length === 1 ? round4(top - second) : null };
 }
+
+/** The median of the finite numbers, or null when there are none. */
+export function median(values: number[]): number | null {
+	const v = values.filter(Number.isFinite).sort((a, b) => a - b);
+	if (v.length === 0) return null;
+	const mid = Math.floor(v.length / 2);
+	return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+}
+
+export interface FilledColumns {
+	columns: Cell[][];
+	/** Per criterion, the median a blank scores as, or null when nothing was filled. */
+	medians: (number | null)[];
+	/** `[criterion][option]`: whether that cell scores as the median rather than its own value. */
+	filled: boolean[][];
+}
+
+/**
+ * A blank, or a value a number column cannot read, scores as that criterion's median across the
+ * options, so an option nobody has scored yet is neither rewarded nor penalized there. The median is
+ * of the raw values, before normalizing. A checkbox left blank stays unchecked. This is the one place
+ * the view departs from Solenoid's Decision Matrix, which scores a blank as 0; `scoreMatrix` itself
+ * stays Solenoid's.
+ */
+export function fillBlanks(columns: Cell[][], logical: boolean[]): FilledColumns {
+	const medians: (number | null)[] = [];
+	const filled: boolean[][] = [];
+	const out = columns.map((col, j) => {
+		const blank = col.map(c => !logical[j] && (c === null || (typeof c === 'number' && !Number.isFinite(c))));
+		const m = logical[j] ? null : median(col.filter((c): c is number => typeof c === 'number'));
+		const fill = m !== null && blank.some(Boolean);
+		medians.push(fill ? m : null);
+		filled.push(blank.map(b => b && fill));
+		return fill ? col.map((c, i) => (blank[i] ? m : c)) : col;
+	});
+	return { columns: out, medians, filled };
+}

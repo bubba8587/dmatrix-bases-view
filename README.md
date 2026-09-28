@@ -1,6 +1,6 @@
 # Decision Matrix Bases View
 
-A weighted decision matrix for [Obsidian Bases](https://help.obsidian.md/bases). Each note in the base is an option with a Scores frame, one column per criterion, and a Weights frame on your decision note says how much each criterion counts. The view scores and ranks the options by the same rules as [Solenoid](https://solenoid-ngc.vercel.app)'s Decision Matrix node, so a decision reads the same in both.
+A weighted decision matrix for [Obsidian Bases](https://help.obsidian.md/bases). Each note in the base is an option with a Scores frame, one column per criterion, and a Weights frame on your decision note says how much each criterion counts. The view scores and ranks the options by the same rules as [Solenoid](https://solenoid-ngc.vercel.app)'s Decision Matrix node, except that a blank scores as the criterion's median rather than 0.
 
 ![The Decision Matrix and Rankings views in the Solenoid look](assets/screenshot.png)
 
@@ -21,7 +21,7 @@ Both views have two controls, saved with the view:
 
 ## Working in the matrix
 
-- **Enter** or **↓** moves down a column and **↑** moves up, like a spreadsheet. A blank cell shows a faint dashed 0 so gaps are easy to spot.
+- **Enter** or **↓** moves down a column and **↑** moves up, like a spreadsheet. A blank cell is dashed and shows, in italics, the median it scores as.
 - In a Weight field, **↑** and **↓** step it by 1, and by 0.1 with **Shift**.
 - **Add Criterion** under the table names a new criterion and adds its row to the Weights frame. Its column is ready for values straight away, and it starts counting once a note has a value, which keeps the scores the same as Solenoid's.
 - A criterion's header menu has **Rename** (the Scores frame on every note and the Weights row), **Lower Is Better** (flips the weight's sign) and **Remove Criterion**.
@@ -39,7 +39,8 @@ Under each weight, **Flips at** is the weight at which a different option would 
 
 - Score = `Σ(value × weight) / Σ|weight|`, rounded to 4 decimal places.
 - Options rank on the rounded score. Equal scores share a rank, shown as `=2`.
-- A blank value counts as 0, and a checkbox counts as 1 or 0. Dates and text are never criteria.
+- A blank, or a value a number column can't read, scores as that criterion's median across the options, so an option you haven't scored yet is neither rewarded nor penalized. The cell shows that median dimmed; it is never written to the note. A blank checkbox counts as unchecked, and a checked one as 1. Dates and text are never criteria.
+- That median is the one difference from Solenoid's Decision Matrix node, which scores a blank as 0. Fill the blanks in and the two agree exactly.
 - A negative weight favors lower values, like cost or risk.
 
 ## The Scores frame
@@ -53,7 +54,7 @@ scores:
     backlit: true
 ```
 
-The criteria are every such column across the notes in the base, so a note missing a column scores 0 there. Each column's type is the one set in Solenoid Properties' Frame editor, which records it on every save, and the view records the types of the columns it writes too. A number or checkbox column is a criterion. A value a number column can't read, like `n/a`, is ignored: it counts as blank, as it does in Solenoid, and shows struck through so you can see it wasn't counted. A frame the editor has never saved is typed the way the editor would show it.
+The criteria are every such column across the notes in the base, so a note missing a column scores 0 there. Each column's type is the one set in Solenoid Properties' Frame editor, which records it on every save, and the view records the types of the columns it writes too. A number or checkbox column is a criterion. A value a number column can't read, like `n/a`, is ignored: it scores like a blank, and shows struck through so you can see it wasn't counted. A frame the editor has never saved is typed the way the editor would show it.
 
 ## The Weights frame
 
@@ -87,7 +88,7 @@ Settings → Decision Matrix → **Create Examples** adds a "Decision Matrix Exa
 
 `npm run build` builds `main.js`; `npm test` runs the scoring tests, which mirror Solenoid's own Decision Matrix tests.
 
-`SOLENOID=../solenoid npm run parity` checks the scoring against Solenoid's own engine: it bundles Solenoid's `decisionMatrix` and its note-Frame typing from a Solenoid checkout and compares criteria, scores, ranks and contributions on thousands of random decisions with stray values, column types, junk weights and Norm spellings. It exits non-zero on any disagreement.
+`SOLENOID=../solenoid npm run parity` checks the scoring against Solenoid's own engine: it bundles Solenoid's `decisionMatrix` and its note-Frame typing from a Solenoid checkout and compares criteria, scores, ranks and contributions on thousands of random decisions with stray values, column types, junk weights and Norm spellings. Blanks are filled with their medians on Solenoid's side first, so it checks everything but that one rule. It exits non-zero on any disagreement.
 
 ## License
 

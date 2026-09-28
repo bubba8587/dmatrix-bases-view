@@ -269,6 +269,7 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 }
 
 .dmv-contrib {
+	white-space: nowrap;
 	font-family: var(--font-monospace);
 	color: var(--sol-text);
 	padding: 0 6px;
@@ -562,7 +563,11 @@ body .dmv-root button.dmv-text-btn:not(.clickable-icon):not(.mod-cta):not(.mod-w
 	border-color: var(--sol-border);
 }
 
-/* A value its number column cannot read: counted as blank, shown as written. */
+/* A blank shows the median it scores as, in italics, never saved. */
+.dmv-root input.dmv-value-input[type].is-median::placeholder { color: var(--sol-text-muted); font-style: italic; }
+.dmv-contrib.is-filled { color: var(--sol-text-muted); font-style: italic; }
+
+/* A value its number column cannot read: scored as the median, shown as written. */
 .dmv-root input.dmv-value-input[type].is-ignored {
 	color: var(--sol-text-muted);
 	text-decoration: line-through;

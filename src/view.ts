@@ -97,11 +97,6 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 	constructor(controller: QueryController, containerEl: HTMLElement, cls: string) {
 		super(controller);
 		this.rootEl = containerEl.createDiv(`dmv-root ${cls}`);
-		// An embedded base sits inside the note's editor, which would otherwise take focus back
-		// from a field the view has just opened.
-		for (const type of ['mousedown', 'mouseup', 'click'] as const) {
-			this.rootEl.addEventListener(type, (e) => e.stopPropagation());
-		}
 	}
 
 	onload(): void {
@@ -319,7 +314,8 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		const resolved = resolveWeights(frame ?? null, criteria);
 		const result = scoreMatrix({
 			columns: criteria.map((_, j) => items.map(it => it.cells[j])),
-			weights: resolved.weights,
+			// A criterion no note scores yet is not in Solenoid's Scores frame, so it weighs nothing here either.
+			weights: resolved.weights.map((w, j) => (criteria[j].pending ? 0 : w)),
 			norms: resolved.norms,
 			normalize: this.normalize,
 		});

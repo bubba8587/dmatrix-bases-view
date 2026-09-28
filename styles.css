@@ -506,6 +506,7 @@ body .dmv-root button.dmv-head-btn:not(.clickable-icon):not(.mod-cta):not(.mod-w
 	cursor: pointer;
 }
 body .dmv-root button.dmv-head-btn:not(.clickable-icon):not(.mod-cta):not(.mod-warning):hover { background: color-mix(in srgb, var(--sol-text) 8%, transparent); }
+.dmv-th-criterion.is-pending .dmv-head-btn { font-style: italic; color: var(--sol-text-dim); }
 .dmv-head-chevron { display: inline-flex; color: var(--sol-text-muted); }
 .dmv-head-chevron svg { width: 12px; height: 12px; }
 body .dmv-root button.dmv-head-btn:not(.clickable-icon):not(.mod-cta):not(.mod-warning):not(:hover) .dmv-head-chevron { opacity: 0.5; }

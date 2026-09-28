@@ -5,6 +5,8 @@ import type { Criterion } from './weights.ts';
 export interface MatrixCriterion extends Criterion {
 	/** Checkbox criteria edit as a checkbox. */
 	logical: boolean;
+	/** Named by the Weights frame but scored by no note yet: shown, not scored. */
+	pending?: boolean;
 }
 
 export interface DecisionItem {

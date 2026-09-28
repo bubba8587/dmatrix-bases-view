@@ -209,7 +209,7 @@ describe('criterion edits', () => {
 	it('lists a weights-only criterion as an empty column', () => {
 		assert.deepEqual(withListed([{ name: 'cost', logical: false }], ['COST', 'noise', ' ']), [
 			{ name: 'cost', logical: false },
-			{ name: 'noise', logical: false },
+			{ name: 'noise', logical: false, pending: true },
 		]);
 	});
 

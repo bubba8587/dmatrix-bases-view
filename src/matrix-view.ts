@@ -75,7 +75,7 @@ export class DecisionMatrixView extends DecisionView {
 		}
 		m.criteria.forEach((c, j) => {
 			const cell = weights.createEl('th', { cls: 'dmv-th dmv-th-num' }).createDiv('dmv-weight-cell');
-			this.renderWeightInput(cell, c, m.result.weights[j], m.canEditCriteria);
+			this.renderWeightInput(cell, c, m.resolved.weights[j], m.canEditCriteria);
 			this.renderNormSelect(cell, c, m.resolved.norms[j], m.canEditCriteria);
 			if (!anyFlip) return;
 			const flip = m.flips[j];
@@ -95,7 +95,10 @@ export class DecisionMatrixView extends DecisionView {
 	}
 
 	private renderCriterionHead(row: HTMLElement, c: MatrixCriterion, m: Model): void {
-		const th = row.createEl('th', { cls: 'dmv-th dmv-th-num dmv-th-criterion' });
+		const th = row.createEl('th', {
+			cls: c.pending ? 'dmv-th dmv-th-num dmv-th-criterion is-pending' : 'dmv-th dmv-th-num dmv-th-criterion',
+			attr: c.pending ? { title: 'Not scored yet. It counts once a note has a value.' } : {},
+		});
 		if (this.naming === c.name) {
 			this.nameField(th, c.name, `Rename ${c.label}`, (to) => void this.renameCriterion(c, to));
 			return;
@@ -105,7 +108,7 @@ export class DecisionMatrixView extends DecisionView {
 		setIcon(btn.createSpan('dmv-head-chevron'), 'chevron-down');
 		const open = (e: MouseEvent) => {
 			e.preventDefault();
-			const w = m.result.weights[m.criteria.indexOf(c)];
+			const w = m.resolved.weights[m.criteria.indexOf(c)];
 			const menu = new Menu();
 			menu.addItem(i => i.setTitle('Rename').setIcon('pencil').onClick(() => { this.naming = c.name; this.render(); }));
 			menu.addItem(i => i

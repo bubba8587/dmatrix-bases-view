@@ -11,6 +11,8 @@ import type { WeightsRecord } from './weights.ts';
 export interface ScoreColumn {
 	name: string;
 	logical: boolean;
+	/** Named by the Weights frame but scored by no note yet. */
+	pending?: boolean;
 }
 
 /** A note's score row: the frame's first row, or null when the property is not a frame. */
@@ -55,9 +57,9 @@ export function setScore(value: unknown, key: string, cell: Cell): WeightsRecord
 }
 
 /**
- * Adds the criteria a Weights frame names that no note scores yet, as empty number columns, so a
- * criterion exists from the moment it is added. Solenoid reads a declared number column with blank
- * cells the same way: every option scores 0 there and its weight still counts in Σ|w|.
+ * Adds the criteria a Weights frame names that no note scores yet, as pending columns, so a new
+ * criterion has cells to type into. Solenoid's Scores frame is built from the notes and has no such
+ * column, so a pending criterion must not score (its weight stays out of Σ|w|) until a note has a value.
  */
 export function withListed(columns: ScoreColumn[], listed: string[]): ScoreColumn[] {
 	const have = new Set(columns.map(c => c.name.trim().toLowerCase()));
@@ -66,7 +68,7 @@ export function withListed(columns: ScoreColumn[], listed: string[]): ScoreColum
 		const key = name.trim().toLowerCase();
 		if (!key || have.has(key)) continue;
 		have.add(key);
-		out.push({ name: name.trim(), logical: false });
+		out.push({ name: name.trim(), logical: false, pending: true });
 	}
 	return out;
 }

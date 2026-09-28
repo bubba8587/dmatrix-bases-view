@@ -86,8 +86,9 @@ export function coerceCell(type: ColumnType, raw: string): FrameCell {
 /** A YAML cell as the text Solenoid coerces: a checkbox as TRUE or FALSE, a stray list by its first item. */
 function rawText(v: unknown): string {
 	if (Array.isArray(v)) v = v[0] ?? null;
-	if (v === null || v === undefined || typeof v === 'object') return '';
-	return typeof v === 'boolean' ? (v ? 'TRUE' : 'FALSE') : String(v);
+	if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
+	if (typeof v === 'number') return String(v);
+	return typeof v === 'string' ? v : '';
 }
 
 /** Records into typed columns, in first-appearance order of their keys. */
@@ -97,7 +98,8 @@ export function toFrame(records: readonly (Record<string, unknown> | null)[], pi
 	return names.map(name => {
 		const cells = records.map(rec => {
 			const v = rec && name in rec ? rec[name] : null;
-			return Array.isArray(v) ? (typeof v[0] === 'object' ? null : v[0] ?? null) : v;
+			const first: unknown = Array.isArray(v) ? v[0] : undefined;
+			return Array.isArray(v) ? (typeof first === 'object' ? null : first ?? null) : v;
 		});
 		const type = picks[name] ?? noteColumnType(cells);
 		const raw = cells.map(rawText);

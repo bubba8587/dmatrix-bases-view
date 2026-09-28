@@ -23,11 +23,11 @@ Both views have two controls, saved with the view:
 
 - **Enter** or **↓** moves down a column and **↑** moves up, like a spreadsheet. A blank cell is dashed and shows, in italics, the median it scores as.
 - In a Weight field, **↑** and **↓** step it by 1, and by 0.1 with **Shift**.
-- **Add Criterion** under the table names a new criterion and adds its row to the Weights frame. Its column is ready for values straight away, and it starts counting once a note has a value, which keeps the scores the same as Solenoid's.
-- A criterion's header menu has **Rename** (the Scores frame on every note and the Weights row), **Lower Is Better** (flips the weight's sign) and **Remove Criterion**.
+- **Add criterion** under the table names a new criterion and adds its row to the Weights frame. Its column is ready for values straight away, and it starts counting once a note has a value, which keeps the scores the same as Solenoid's.
+- A criterion's header menu has **Rename** (the Scores frame on every note and the Weights row), **Lower is better** (flips the weight's sign) and **Remove criterion**.
 - Hover an option's name for a page preview, or right-click it for the file menu.
 - The Rank, Option and Score columns stay put while a wide matrix scrolls.
-- **⋯** in the toolbar has **Copy as Markdown**, which copies the ranking as a table (with the contributions under Breakdown), and **Reset Weights**.
+- **⋯** in the toolbar has **Copy as Markdown**, which copies the ranking as a table (with the contributions under Breakdown), and **Reset weights**.
 
 ## How close is the call?
 
@@ -76,17 +76,17 @@ weights:
 
 This is the same table Solenoid's Decision Matrix takes on its Weights input, so the note imports straight into Solenoid.
 
-**Create Weights** in the toolbar writes a frame with every criterion at weight 1. After that the toolbar shows the frame's chip, which opens Solenoid's Frame editor. The weight fields and Norm menus in the table write to the same frame.
+**Create weights** in the toolbar writes a frame with every criterion at weight 1. After that the toolbar shows the frame's chip, which opens Solenoid's Frame editor. The weight fields and Norm menus in the table write to the same frame.
 
 Each view has three options in the Bases view settings: **Scores property** and **Weights property**, to use other property names, and **Weights note**, to read the Weights frame from a note other than the embedding one.
 
 ## Examples
 
-Settings → Decision Matrix → **Create Examples** adds a "Decision Matrix Examples" folder: four laptops with Scores frames, a base with both views, and a decision note with a Weights frame that embeds both.
+Settings → Decision Matrix → **Create examples** adds a "Decision Matrix Examples" folder: four laptops with Scores frames, a base with both views, and a decision note with a Weights frame that embeds both.
 
 ## Development
 
-`npm run build` builds `main.js`; `npm test` runs the scoring tests, which mirror Solenoid's own Decision Matrix tests.
+`npm run build` builds `main.js`; `npm test` runs the scoring tests, which mirror Solenoid's own Decision Matrix tests; `npm run lint` runs Obsidian's plugin-review rules (`eslint-plugin-obsidianmd`).
 
 `SOLENOID=../solenoid npm run parity` checks the scoring against Solenoid's own engine: it bundles Solenoid's `decisionMatrix` and its note-Frame typing from a Solenoid checkout and compares criteria, scores, ranks and contributions on thousands of random decisions with stray values, column types, junk weights and Norm spellings. Blanks are filled with their medians on Solenoid's side first, so it checks everything but that one rule. It exits non-zero on any disagreement.
 

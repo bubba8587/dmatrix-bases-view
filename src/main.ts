@@ -1,5 +1,5 @@
 import { Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
-import type { App } from 'obsidian';
+import type { App, SettingDefinitionItem } from 'obsidian';
 import { DecisionMatrixView } from './matrix-view.ts';
 import { DecisionMatrixRankingsView } from './rankings-view.ts';
 import { assignFrameType, recordColumnTypes, solenoid } from './solenoid.ts';
@@ -30,20 +30,33 @@ class DecisionMatrixSettingsTab extends PluginSettingTab {
 		super(app, plugin);
 	}
 
-	display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
-
+	private rows(): { name: string; render: (setting: Setting) => void }[] {
+		const rows: { name: string; render: (setting: Setting) => void }[] = [];
 		if (!solenoid(this.app)) {
-			new Setting(containerEl)
-				.setName('Solenoid Properties')
-				.setDesc('Decision Matrix needs the Solenoid Properties plugin for its Weights frame. Install and enable it from Community plugins.');
+			rows.push({
+				name: 'Solenoid Properties',
+				render: (setting) => { setting.setDesc('Decision Matrix needs the Solenoid Properties plugin for its scores and weights frames. Install and enable it from community plugins.'); },
+			});
 		}
+		rows.push({
+			name: 'Example notes',
+			render: (setting) => {
+				setting
+					.setDesc(`Adds a "${FOLDER}" folder: four laptops, a base with both views, and a decision note with a weights frame.`)
+					.addButton(btn => btn.setButtonText('Create examples').setCta().onClick(() => void createExamples(this.app)));
+			},
+		});
+		return rows;
+	}
 
-		new Setting(containerEl)
-			.setName('Example notes')
-			.setDesc('Adds a "Decision Matrix Examples" folder: four laptops, a base with both views, and a decision note with a Weights frame.')
-			.addButton(btn => btn.setButtonText('Create Examples').setCta().onClick(() => void createExamples(this.app)));
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		return this.rows().map(row => ({ name: row.name, render: (setting: Setting) => row.render(setting.setName(row.name)) }));
+	}
+
+	/** Obsidian before 1.13 draws the tab through this; 1.13 draws it from the definitions. */
+	display(): void {
+		this.containerEl.empty();
+		for (const row of this.rows()) row.render(new Setting(this.containerEl).setName(row.name));
 	}
 }
 

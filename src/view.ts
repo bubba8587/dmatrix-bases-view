@@ -6,7 +6,7 @@
 import { BasesView, Menu, Modal, Notice, TFile, setIcon } from 'obsidian';
 import type { App, BasesAllOptions, BasesEntry, BasesEntryGroup, HoverParent, HoverPopover, QueryController } from 'obsidian';
 import { groupsOf, readMatrix } from './data.ts';
-import type { ColumnPicks, ColumnType, PluginColumnTypes } from './frame.ts';
+import type { ColumnType, PluginColumnTypes } from './frame.ts';
 import { fillBlanks, flipWeights, formatScore, leadOf, scoreMatrix } from './scoring.ts';
 import type { Detail, MatrixResult, Normalize } from './scoring.ts';
 import { assignFrameType, frameChip, loadColumnTypes, recordColumnTypes, releaseChips, solenoid } from './solenoid.ts';
@@ -163,7 +163,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 	/** The Weights property's value: a frame, `undefined` when absent, `null` when it is something else. */
 	protected weightsFrame(note: TFile | null): WeightsRecord[] | null | undefined {
 		if (!note) return undefined;
-		const v = this.app.metadataCache.getFileCache(note)?.frontmatter?.[this.weightsProperty];
+		const v: unknown = this.app.metadataCache.getFileCache(note)?.frontmatter?.[this.weightsProperty];
 		if (v === undefined) return undefined;
 		return isFrameYaml(v) ? v : null;
 	}
@@ -208,7 +208,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 	private async replaceColumnTypes(key: string, edit: (picks: Record<string, ColumnType>) => void): Promise<void> {
 		const next: Record<string, ColumnType> = { ...((await loadColumnTypes(this.app))[key] ?? {}) };
 		edit(next);
-		await recordColumnTypes(this.app, key, next as ColumnPicks, true);
+		await recordColumnTypes(this.app, key, next, true);
 		await this.refreshPicks();
 	}
 
@@ -241,7 +241,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 	private async editScores(edit: (value: unknown) => WeightsRecord[] | null): Promise<void> {
 		const key = this.scoresProperty;
 		for (const entry of this.entries()) {
-			const before = this.app.metadataCache.getFileCache(entry.file)?.frontmatter?.[key];
+			const before: unknown = this.app.metadataCache.getFileCache(entry.file)?.frontmatter?.[key];
 			if (edit(before) === null) continue;
 			await this.app.fileManager.processFrontMatter(entry.file, (fm: Record<string, unknown>) => {
 				const next = edit(fm[key]);
@@ -440,7 +440,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		if (!note) {
 			weights.createSpan({ text: 'All 1. Embed this base in a note to weigh criteria.', cls: 'dmv-muted' });
 		} else if (frame === undefined) {
-			const btn = weights.createEl('button', { text: 'Create Weights', cls: 'dmv-btn', attr: { title: 'Add a Weights frame to the decision note' } });
+			const btn = weights.createEl('button', { text: 'Create weights', cls: 'dmv-btn', attr: { title: 'Add a weights frame to the decision note' } });
 			btn.disabled = criteria.length === 0;
 			btn.addEventListener('click', () => {
 				assignFrameType(this.app, key);
@@ -464,7 +464,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 			const menu = new Menu();
 			menu.addItem(i => i.setTitle('Copy as Markdown').setIcon('copy').setDisabled(!this.model).onClick(() => void this.copyMarkdown()));
 			if (this.model?.canEditCriteria) {
-				menu.addItem(i => i.setTitle('Reset Weights').setIcon('rotate-ccw').onClick(() => {
+				menu.addItem(i => i.setTitle('Reset weights').setIcon('rotate-ccw').onClick(() => {
 					new ConfirmModal(this.app, 'Reset every weight to 1?', 'Norm overrides are cleared too.', 'Reset', async () => {
 						await this.writeWeights(defaultFrame(this.model?.criteria ?? criteria));
 					}).open();

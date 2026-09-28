@@ -65,7 +65,7 @@ export class DecisionMatrixView extends DecisionView {
 		if (!m.canEditCriteria) return;
 		const foot = tbody.createEl('tr', { cls: 'dmv-new-row' }).createEl('td', { cls: 'dmv-td', attr: { colspan: String(span) } }).createDiv('dmv-foot');
 		if (this.naming === '') this.nameField(foot, '', 'New criterion', (name) => this.addCriterion(name));
-		else textButton(foot, 'Add Criterion', () => { this.naming = ''; this.render(); });
+		else textButton(foot, 'Add criterion', () => { this.naming = ''; this.render(); });
 	}
 
 	// ── Head ──────────────────────────────────────────────────
@@ -119,12 +119,12 @@ export class DecisionMatrixView extends DecisionView {
 			const menu = new Menu();
 			menu.addItem(i => i.setTitle('Rename').setIcon('pencil').onClick(() => { this.naming = c.name; this.render(); }));
 			menu.addItem(i => i
-				.setTitle(w < 0 ? 'Higher Is Better' : 'Lower Is Better')
+				.setTitle(w < 0 ? 'Higher is better' : 'Lower is better')
 				.setIcon('arrow-down-up')
 				.setDisabled(!m.canEditCriteria || w === 0)
 				.onClick(() => this.setWeight(c, -w)));
 			menu.addSeparator();
-			menu.addItem(i => i.setTitle('Remove Criterion').setIcon('trash-2').setWarning(true).onClick(() => this.removeCriterion(c)));
+			menu.addItem(i => i.setTitle('Remove criterion').setIcon('trash-2').setWarning(true).onClick(() => this.removeCriterion(c)));
 			showMenu(menu, btn, e);
 		};
 		btn.addEventListener('click', open);
@@ -169,7 +169,7 @@ export class DecisionMatrixView extends DecisionView {
 	private renderNormSelect(parent: HTMLElement, c: MatrixCriterion, own: Normalize | null, editable: boolean): void {
 		const select = parent.createEl('select', {
 			cls: own ? 'dmv-norm is-set' : 'dmv-norm',
-			attr: { 'aria-label': `Norm of ${c.label}`, title: 'Norm. Blank follows the view\'s Normalize.' },
+			attr: { 'aria-label': `Norm of ${c.label}`, title: 'Norm. Blank follows the setting for the whole view.' },
 		});
 		const fallback = NORMALIZE_OPTIONS.find(o => o.value === this.normalize)!.label;
 		select.createEl('option', { text: `(${fallback})`, value: '' });
@@ -217,7 +217,7 @@ export class DecisionMatrixView extends DecisionView {
 		score.createSpan({ text: formatScore(s), cls: 'dmv-score' });
 		const gauge = score.createDiv('dmv-gauge');
 		const fill = gauge.createDiv(s < 0 ? 'dmv-gauge-fill is-negative' : 'dmv-gauge-fill');
-		fill.style.width = `${maxAbs > 0 ? (Math.abs(s) / maxAbs) * 100 : 0}%`;
+		fill.setCssProps({ '--dmv-width': `${maxAbs > 0 ? (Math.abs(s) / maxAbs) * 100 : 0}%` });
 	}
 
 	private renderValue(td: HTMLElement, item: DecisionItem, c: MatrixCriterion, j: number, median: number | null): void {

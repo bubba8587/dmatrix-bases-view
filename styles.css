@@ -294,6 +294,7 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 	justify-content: flex-end;
 }
 .dmv-gauge-fill {
+	width: var(--dmv-width, 0);
 	height: 100%;
 	background: var(--sol-number);
 	border-radius: 999px;
@@ -394,6 +395,7 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 }
 .dmv-zero {
 	position: absolute;
+	left: var(--dmv-left, 0);
 	top: 6px;
 	bottom: 6px;
 	width: 1px;
@@ -403,6 +405,8 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 .dmv-bar,
 .dmv-seg-bar {
 	position: absolute;
+	left: var(--dmv-left, 0);
+	width: var(--dmv-width, 0);
 	top: 10px;
 	bottom: 10px;
 }

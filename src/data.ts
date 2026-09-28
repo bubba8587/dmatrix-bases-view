@@ -2,7 +2,7 @@
  * Bases rows into the matrix: each note is an option, and the number and checkbox columns of the
  * notes' Scores frames, stacked and typed the way Solenoid types them, are the criteria.
  */
-import type { App, BasesEntry, BasesEntryGroup, BasesPropertyId } from 'obsidian';
+import type { App, BasesEntry, BasesEntryGroup } from 'obsidian';
 import type { PluginColumnTypes } from './frame.ts';
 import type { Cell } from './scoring.ts';
 import { scoreRow, scoreTable, withListed } from './scores.ts';
@@ -17,7 +17,7 @@ export interface MatrixData {
 }
 
 function titleOf(entry: BasesEntry): string {
-	const title = entry.getValue('note.title' as BasesPropertyId)?.toString().trim();
+	const title = entry.getValue('note.title')?.toString().trim();
 	return title && title !== 'null' ? title : entry.file.basename;
 }
 

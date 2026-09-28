@@ -56,7 +56,7 @@ export class DecisionMatrixRankingsView extends DecisionView {
 			this.optionLink(row, item, 'dmv-link dmv-rank-name');
 
 			const track = row.createDiv('dmv-track');
-			if (neg > 0) track.createDiv('dmv-zero').style.left = pct(neg);
+			if (neg > 0) track.createDiv('dmv-zero').setCssProps({ '--dmv-left': pct(neg) });
 			if (breakdown) {
 				let right = neg, left = neg;
 				result.contributions.forEach((col, j) => {
@@ -66,15 +66,15 @@ export class DecisionMatrixRankingsView extends DecisionView {
 						cls: `dmv-seg-bar ${series(j)}${v < 0 ? ' is-negative' : ''}`,
 						attr: { title: m.criteria[j].label },
 					});
-					if (v > 0) { seg.style.left = pct(right); right += v; }
-					else { left += v; seg.style.left = pct(left); }
-					seg.style.width = pct(Math.abs(v));
+					const at = v > 0 ? right : left + v;
+					if (v > 0) right += v;
+					else left += v;
+					seg.setCssProps({ '--dmv-left': pct(at), '--dmv-width': pct(Math.abs(v)) });
 				});
 			} else {
 				const s = result.scores[i];
 				const bar = track.createDiv(s < 0 ? 'dmv-bar is-negative' : 'dmv-bar');
-				bar.style.left = pct(s < 0 ? neg + s : neg);
-				bar.style.width = pct(Math.abs(s));
+				bar.setCssProps({ '--dmv-left': pct(s < 0 ? neg + s : neg), '--dmv-width': pct(Math.abs(s)) });
 			}
 			row.createSpan({ text: formatScore(result.scores[i]), cls: 'dmv-score' });
 		}

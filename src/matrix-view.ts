@@ -1,18 +1,27 @@
 /**
  * The Decision Matrix view: one table, an option per row and a criterion per column, with the
- * criterion's Weight and Norm under its name. Values edit in place and save to the option's note;
- * Weight and Norm save to the Weights frame.
+ * criterion's Weight, Norm and flip point under its name. Values edit in place and save to the
+ * option's Scores frame; Weight and Norm save to the Weights frame. Enter and the arrow keys move
+ * down and up a column like a spreadsheet.
  */
+import { Menu, setIcon } from 'obsidian';
 import type { QueryController } from 'obsidian';
 import { formatScore } from './scoring.ts';
 import type { Normalize } from './scoring.ts';
 import type { DecisionItem, ItemGroup, MatrixCriterion } from './types.ts';
-import { DecisionView, NORMALIZE_OPTIONS, draftInput, rankText } from './view.ts';
+import { DecisionView, NORMALIZE_OPTIONS, draftInput, rankText, showMenu } from './view.ts';
 import type { Model } from './view.ts';
+
+const cellKey = (item: DecisionItem, c: MatrixCriterion) => `cell|${item.id}|${c.name}`;
+const weightKey = (c: MatrixCriterion) => `weight|${c.name}`;
 
 export class DecisionMatrixView extends DecisionView {
 	type = 'decision-matrix';
 	private collapsed = new Set<string>();
+	/** The criterion whose header is being renamed, or '' while the add column is open. */
+	private naming: string | null = null;
+	/** Items top to bottom as drawn, for moving down and up a column. */
+	private drawn: DecisionItem[] = [];
 
 	constructor(controller: QueryController, containerEl: HTMLElement) {
 		super(controller, containerEl, 'dmv-matrix');
@@ -24,42 +33,130 @@ export class DecisionMatrixView extends DecisionView {
 		this.renderHead(table.createEl('thead'), m);
 
 		const tbody = table.createEl('tbody');
+		const span = m.criteria.length + 3;
 		const maxAbs = m.result.scores.reduce((a, s) => Math.max(a, Math.abs(s)), 0);
 		const sorted = this.config.getSort().length > 0;
+		const rank = (it: DecisionItem) => m.result.ranks[m.row.get(it.id)!];
+		this.drawn = [];
 		for (const group of m.groups) {
-			if (group.key !== '') this.renderGroupRow(tbody, group, m.criteria.length + 3);
+			if (group.key !== '') this.renderGroupRow(tbody, group, span);
 			if (this.collapsed.has(group.key)) continue;
-			const items = sorted ? group.items : [...group.items].sort((a, b) => m.result.ranks[m.row.get(a.id)!] - m.result.ranks[m.row.get(b.id)!]);
-			for (const item of items) this.renderRow(tbody, item, m, maxAbs);
+			const items = sorted ? group.items : [...group.items].sort((a, b) => rank(a) - rank(b));
+			for (const item of items) {
+				this.drawn.push(item);
+				this.renderRow(tbody, item, m, maxAbs);
+			}
 		}
+
+		const foot = tbody.createEl('tr', { cls: 'dmv-new-row' }).createEl('td', { cls: 'dmv-td', attr: { colspan: String(span) } }).createDiv('dmv-foot');
+		textButton(foot, 'New Option', () => this.newOption());
+		if (!m.canEditCriteria) return;
+		if (this.naming === '') this.nameField(foot, '', 'New criterion', (name) => this.addCriterion(name));
+		else textButton(foot, 'Add Criterion', () => { this.naming = ''; this.render(); });
 	}
+
+	// ── Head ──────────────────────────────────────────────────
 
 	private renderHead(thead: HTMLElement, m: Model): void {
 		const names = thead.createEl('tr', { cls: 'dmv-head' });
 		names.createEl('th', { text: 'Rank', cls: 'dmv-th dmv-th-rank' });
 		names.createEl('th', { text: 'Option', cls: 'dmv-th dmv-th-option' });
-		for (const c of m.criteria) names.createEl('th', { text: c.label, cls: 'dmv-th dmv-th-num', attr: { title: c.name } });
+		for (const c of m.criteria) this.renderCriterionHead(names, c, m);
 		names.createEl('th', { text: 'Score', cls: 'dmv-th dmv-th-num dmv-th-score', attr: { title: 'Σ(value × weight) / Σ|weight|' } });
 
+		const anyFlip = m.flips.some(f => f !== null);
 		const weights = thead.createEl('tr', { cls: 'dmv-weights-row' });
 		weights.createEl('th', { cls: 'dmv-th' });
 		const caption = weights.createEl('th', { cls: 'dmv-th dmv-th-option' });
 		caption.createSpan({ text: 'Weight', cls: 'dmv-caption' });
 		caption.createSpan({ text: 'Norm', cls: 'dmv-caption' });
+		if (anyFlip) {
+			caption.createSpan({ text: 'Flips at', cls: 'dmv-caption', attr: { title: 'The weight at which another option would take first place, with every other weight held' } });
+		}
 		m.criteria.forEach((c, j) => {
-			const th = weights.createEl('th', { cls: 'dmv-th dmv-th-num' });
-			const cell = th.createDiv('dmv-weight-cell');
-			draftInput(cell, 'dmv-input dmv-weight-input', String(m.result.weights[j]), (text) => {
-				const w = text === '' ? 1 : Number(text);
-				if (Number.isFinite(w)) this.setWeight(c, w);
-				else this.render();
-			}, { 'aria-label': `Weight of ${c.label}`, title: 'Weight. Negative when lower is better.' });
-			this.renderNormSelect(cell, c, m.resolved.norms[j]);
+			const cell = weights.createEl('th', { cls: 'dmv-th dmv-th-num' }).createDiv('dmv-weight-cell');
+			this.renderWeightInput(cell, c, m.result.weights[j], m.canEditCriteria);
+			this.renderNormSelect(cell, c, m.resolved.norms[j], m.canEditCriteria);
+			if (!anyFlip) return;
+			const flip = m.flips[j];
+			if (flip === null) {
+				cell.createSpan({ text: 'never', cls: 'dmv-flip is-never', attr: { title: 'No weight here changes first place' } });
+				return;
+			}
+			const btn = cell.createEl('button', {
+				text: String(flip),
+				cls: 'dmv-flip',
+				attr: { title: 'Set this weight to where first place changes hands', 'aria-label': `Flip point of ${c.label}` },
+			});
+			btn.disabled = !m.canEditCriteria;
+			btn.addEventListener('click', () => this.setWeight(c, flip));
 		});
 		weights.createEl('th', { cls: 'dmv-th' });
 	}
 
-	private renderNormSelect(parent: HTMLElement, c: MatrixCriterion, own: Normalize | null): void {
+	private renderCriterionHead(row: HTMLElement, c: MatrixCriterion, m: Model): void {
+		const th = row.createEl('th', { cls: 'dmv-th dmv-th-num dmv-th-criterion' });
+		if (this.naming === c.name) {
+			this.nameField(th, c.name, `Rename ${c.label}`, (to) => void this.renameCriterion(c, to));
+			return;
+		}
+		const btn = th.createEl('button', { cls: 'dmv-head-btn', attr: { 'aria-label': `${c.label} options` } });
+		btn.createSpan({ text: c.label });
+		setIcon(btn.createSpan('dmv-head-chevron'), 'chevron-down');
+		const open = (e: MouseEvent) => {
+			e.preventDefault();
+			const w = m.result.weights[m.criteria.indexOf(c)];
+			const menu = new Menu();
+			menu.addItem(i => i.setTitle('Rename').setIcon('pencil').onClick(() => { this.naming = c.name; this.render(); }));
+			menu.addItem(i => i
+				.setTitle(w < 0 ? 'Higher Is Better' : 'Lower Is Better')
+				.setIcon('arrow-down-up')
+				.setDisabled(!m.canEditCriteria || w === 0)
+				.onClick(() => this.setWeight(c, -w)));
+			menu.addSeparator();
+			menu.addItem(i => i.setTitle('Remove Criterion').setIcon('trash-2').setWarning(true).onClick(() => this.removeCriterion(c)));
+			showMenu(menu, btn, e);
+		};
+		btn.addEventListener('click', open);
+		btn.addEventListener('contextmenu', open);
+	}
+
+	/** A criterion name field: Enter commits, Escape or leaving it cancels. */
+	private nameField(parent: HTMLElement, value: string, label: string, onCommit: (name: string) => void): void {
+		const done = () => { this.naming = null; this.render(); };
+		const input = draftInput(parent, 'dmv-input dmv-name-input', value, (name) => {
+			this.naming = null;
+			if (name) onCommit(name);
+			this.render();
+		}, { inputmode: 'text', placeholder: 'Criterion', 'aria-label': label });
+		input.addEventListener('keydown', (e) => { if (e.key === 'Escape') done(); });
+		input.addEventListener('blur', () => { if (this.naming !== null) done(); });
+		window.setTimeout(() => { input.focus(); input.select(); });
+	}
+
+	private renderWeightInput(parent: HTMLElement, c: MatrixCriterion, weight: number, editable: boolean): void {
+		const input = draftInput(parent, 'dmv-input dmv-weight-input', String(weight), (text) => {
+			const w = text === '' ? 1 : Number(text);
+			if (Number.isFinite(w)) this.setWeight(c, w);
+			else this.render();
+		}, {
+			'aria-label': `Weight of ${c.label}`,
+			title: 'Weight. Negative when lower is better. Up and Down step it by 1, with Shift by 0.1.',
+			'data-dmv-key': weightKey(c),
+		});
+		input.disabled = !editable;
+		input.addEventListener('keydown', (e) => {
+			if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+			e.preventDefault();
+			const step = (e.shiftKey ? 0.1 : 1) * (e.key === 'ArrowUp' ? 1 : -1);
+			const next = Math.round(((Number(input.value) || 0) + step) * 1000) / 1000;
+			input.value = String(next);
+			input.dataset.settled = input.value;
+			this.setWeight(c, next);
+		});
+	}
+
+	private renderNormSelect(parent: HTMLElement, c: MatrixCriterion, own: Normalize | null, editable: boolean): void {
 		const select = parent.createEl('select', {
 			cls: own ? 'dmv-norm is-set' : 'dmv-norm',
 			attr: { 'aria-label': `Norm of ${c.label}`, title: 'Norm. Blank follows the view\'s Normalize.' },
@@ -68,8 +165,11 @@ export class DecisionMatrixView extends DecisionView {
 		select.createEl('option', { text: `(${fallback})`, value: '' });
 		for (const o of NORMALIZE_OPTIONS) select.createEl('option', { text: o.label, value: o.value });
 		select.value = own ?? '';
+		select.disabled = !editable;
 		select.addEventListener('change', () => this.setNorm(c, (select.value || null) as Normalize | null));
 	}
+
+	// ── Body ──────────────────────────────────────────────────
 
 	private renderGroupRow(tbody: HTMLElement, group: ItemGroup, span: number): void {
 		const tr = tbody.createEl('tr', { cls: 'dmv-group' });
@@ -90,9 +190,7 @@ export class DecisionMatrixView extends DecisionView {
 		const rank = m.result.ranks[i];
 		const tr = tbody.createEl('tr', { cls: rank === 1 ? 'dmv-row is-top' : 'dmv-row' });
 		tr.createEl('td', { text: rankText(rank, m.result.tied[i]), cls: 'dmv-td dmv-td-rank' });
-		const name = tr.createEl('td', { cls: 'dmv-td dmv-td-option' });
-		const link = name.createEl('a', { text: item.title, cls: 'dmv-link', href: '#' });
-		link.addEventListener('click', (e) => { e.preventDefault(); this.openNote(item, e); });
+		this.optionLink(tr.createEl('td', { cls: 'dmv-td dmv-td-option' }), item);
 
 		m.criteria.forEach((c, j) => {
 			const td = tr.createEl('td', { cls: 'dmv-td dmv-td-num' });
@@ -115,17 +213,35 @@ export class DecisionMatrixView extends DecisionView {
 		const cell = item.cells[j];
 		const sub = td.hasChildNodes();
 		if (c.logical) {
-			const box = td.createEl('input', { type: 'checkbox', cls: sub ? 'dmv-check is-sub' : 'dmv-check' });
+			const box = td.createEl('input', { type: 'checkbox', cls: sub ? 'dmv-check is-sub' : 'dmv-check', attr: { 'aria-label': `${c.label} of ${item.title}` } });
 			box.checked = cell === true;
 			box.addEventListener('change', () => void this.writeCell(item, c, box.checked));
 			return;
 		}
-		const text = cell === null ? '' : String(cell);
-		draftInput(td, sub ? 'dmv-input dmv-value-input is-sub' : 'dmv-input dmv-value-input', text, (next) => {
+		const cls = `dmv-input dmv-value-input${sub ? ' is-sub' : ''}${cell === null ? ' is-blank' : ''}`;
+		const input = draftInput(td, cls, cell === null ? '' : String(cell), (next) => {
 			if (next === '') { void this.writeCell(item, c, null); return; }
 			const n = Number(next);
 			if (Number.isFinite(n)) void this.writeCell(item, c, n);
 			else this.render();
-		}, { 'aria-label': `${c.label} of ${item.title}`, placeholder: '0' });
+		}, { 'aria-label': `${c.label} of ${item.title}`, placeholder: '0', 'data-dmv-key': cellKey(item, c) });
+		input.addEventListener('keydown', (e) => {
+			const down = e.key === 'Enter' || e.key === 'ArrowDown';
+			if (!down && e.key !== 'ArrowUp') return;
+			const target = this.drawn[this.drawn.indexOf(item) + (down ? 1 : -1)];
+			if (!target) return;
+			e.preventDefault();
+			const el = Array.from(this.rootEl.querySelectorAll<HTMLInputElement>('input[data-dmv-key]'))
+				.find(x => x.dataset.dmvKey === cellKey(target, c));
+			el?.focus();
+		});
+		input.addEventListener('focus', () => input.select());
 	}
+}
+
+function textButton(parent: HTMLElement, text: string, onClick: () => void): void {
+	const btn = parent.createEl('button', { cls: 'dmv-text-btn' });
+	setIcon(btn.createSpan('dmv-text-btn-icon'), 'plus');
+	btn.createSpan({ text });
+	btn.addEventListener('click', onClick);
 }

@@ -51,8 +51,7 @@ export class DecisionMatrixRankingsView extends DecisionView {
 			const rank = result.ranks[i];
 			const row = list.createDiv(rank === 1 ? 'dmv-rank-row is-top' : 'dmv-rank-row');
 			row.createSpan({ text: rankText(rank, result.tied[i]), cls: 'dmv-rank-num' });
-			const link = row.createEl('a', { text: item.title, cls: 'dmv-link dmv-rank-name', href: '#' });
-			link.addEventListener('click', (e) => { e.preventDefault(); this.openNote(item, e); });
+			this.optionLink(row, item, 'dmv-link dmv-rank-name');
 
 			const track = row.createDiv('dmv-track');
 			if (neg > 0) track.createDiv('dmv-zero').style.left = pct(neg);

@@ -4,7 +4,7 @@ import { DecisionMatrixView } from './matrix-view.ts';
 import { DecisionMatrixRankingsView } from './rankings-view.ts';
 import { assignFrameType, solenoid } from './solenoid.ts';
 import { DEFAULT_SCORES_PROPERTY, DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
-import { viewOptions } from './view.ts';
+import { HOVER_SOURCE, viewOptions } from './view.ts';
 
 export default class DecisionMatrixPlugin extends Plugin {
 	async onload(): Promise<void> {
@@ -20,6 +20,7 @@ export default class DecisionMatrixPlugin extends Plugin {
 			factory: (controller, containerEl) => new DecisionMatrixRankingsView(controller, containerEl),
 			options: () => viewOptions(),
 		});
+		this.registerHoverLinkSource(HOVER_SOURCE, { display: 'Decision Matrix', defaultMod: true });
 		this.addSettingTab(new DecisionMatrixSettingsTab(this.app, this));
 	}
 }

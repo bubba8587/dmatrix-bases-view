@@ -111,3 +111,42 @@ export const NORM_TEXT: Record<Normalize, string> = { none: 'Raw', max: '÷Max',
 export function formatScore(n: number): string {
 	return String(round4(n));
 }
+
+/**
+ * Per criterion, the nearest weight at which a different option would take first place, with every
+ * other weight held; null when no weight changes the leader or first place is already tied.
+ * Every option's score shares the denominator Σ|w|, so the order between two options is the sign of
+ * Σ (a_j − b_j)·w_j, linear in each weight, and each rival crosses the leader at one weight.
+ */
+export function flipWeights(result: MatrixResult): (number | null)[] {
+	const { effective, weights, ranks, tied } = result;
+	const leader = ranks.indexOf(1);
+	if (leader < 0 || tied[leader]) return effective.map(() => null);
+	const n = ranks.length;
+	return effective.map((col, k) => {
+		const w = weights[k];
+		let best: number | null = null;
+		for (let x = 0; x < n; x++) {
+			if (x === leader) continue;
+			const slope = col[leader] - col[x];
+			if (slope === 0) continue;
+			let rest = 0;
+			for (let j = 0; j < effective.length; j++) {
+				if (j !== k) rest += (effective[j][leader] - effective[j][x]) * weights[j];
+			}
+			const at = -rest / slope;
+			if (!Number.isFinite(at) || Math.abs(at - w) < 1e-9) continue;
+			if (best === null || Math.abs(at - w) < Math.abs(best - w)) best = at;
+		}
+		return best === null ? null : Math.round(best * 100) / 100;
+	});
+}
+
+/** The leader and how far ahead it is: the top − runner-up margin Solenoid's Decision Sensitivity reports. */
+export function leadOf(result: MatrixResult): { leaders: number[]; margin: number | null } {
+	const leaders = result.ranks.flatMap((r, i) => (r === 1 ? [i] : []));
+	const top = leaders.length ? result.scores[leaders[0]] : null;
+	const rest = result.scores.filter((_, i) => result.ranks[i] !== 1);
+	const second = rest.length ? Math.max(...rest) : null;
+	return { leaders, margin: top !== null && second !== null && leaders.length === 1 ? round4(top - second) : null };
+}

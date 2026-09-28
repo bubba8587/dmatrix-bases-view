@@ -133,3 +133,35 @@ export function setWeight(frame: WeightsRecord[], c: Criterion, weight: number):
 export function setNorm(frame: WeightsRecord[], c: Criterion, mode: Normalize | null): WeightsRecord[] {
 	return setCell(frame, c, l => l.normKey, 'Norm', mode ? NORM_TEXT[mode] : null);
 }
+
+/** Every criterion the frame names, in row order. */
+export function listedCriteria(frame: WeightsRecord[] | null): string[] {
+	if (!frame) return [];
+	const { criterionKey } = layoutOf(frame);
+	if (!criterionKey) return [];
+	return frame.flatMap(r => (typeof r[criterionKey] === 'string' ? [r[criterionKey] as string] : []));
+}
+
+/** Adds a row for a new criterion; the frame is created when there is none. */
+export function addCriterion(frame: WeightsRecord[], name: string): WeightsRecord[] {
+	if (frame.length === 0) return [{ Criterion: name, Weight: 1, Norm: null }];
+	const layout = layoutOf(frame);
+	const row: WeightsRecord = { [layout.criterionKey ?? 'Criterion']: name, [layout.weightKey ?? 'Weight']: 1 };
+	if (layout.normKey) row[layout.normKey] = null;
+	return [...frame, row];
+}
+
+/** Renames a criterion's row; returns the frame unchanged when it has no row for it. */
+export function renameCriterion(frame: WeightsRecord[], c: Criterion, to: string): WeightsRecord[] {
+	const { criterionKey } = layoutOf(frame);
+	if (!criterionKey) return frame;
+	const r = rowOf(rowIndex(frame, criterionKey), c);
+	return frame.map((rec, i) => (i === r ? { ...rec, [criterionKey]: to } : rec));
+}
+
+/** Drops a criterion's row. */
+export function removeCriterion(frame: WeightsRecord[], c: Criterion): WeightsRecord[] {
+	const { criterionKey } = layoutOf(frame);
+	const r = criterionKey ? rowOf(rowIndex(frame, criterionKey), c) : undefined;
+	return r == null ? frame : frame.filter((_, i) => i !== r);
+}

@@ -53,3 +53,32 @@ export function setScore(value: unknown, key: string, cell: Cell): WeightsRecord
 	frame[0][key] = cell;
 	return frame;
 }
+
+/**
+ * Adds the criteria a Weights frame names that no note scores yet, as empty number columns, so a
+ * criterion exists from the moment it is added. Solenoid reads a declared number column with blank
+ * cells the same way: every option scores 0 there and its weight still counts in Σ|w|.
+ */
+export function withListed(columns: ScoreColumn[], listed: string[]): ScoreColumn[] {
+	const have = new Set(columns.map(c => c.name.trim().toLowerCase()));
+	const out = [...columns];
+	for (const name of listed) {
+		const key = name.trim().toLowerCase();
+		if (!key || have.has(key)) continue;
+		have.add(key);
+		out.push({ name: name.trim(), logical: false });
+	}
+	return out;
+}
+
+/** The note's Scores frame with a column renamed, keeping column order; null when nothing changes. */
+export function renameScore(value: unknown, from: string, to: string): WeightsRecord[] | null {
+	if (!isFrameYaml(value) || !value.some(r => from in r)) return null;
+	return value.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k === from ? to : k, v])));
+}
+
+/** The note's Scores frame without a column; null when nothing changes. */
+export function dropScore(value: unknown, key: string): WeightsRecord[] | null {
+	if (!isFrameYaml(value) || !value.some(r => key in r)) return null;
+	return value.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => k !== key)));
+}

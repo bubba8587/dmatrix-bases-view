@@ -181,7 +181,6 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 	border-bottom: 1px solid var(--dmv-hairline);
 	vertical-align: middle;
 }
-.dmv-root .dmv-row:last-child .dmv-td { border-bottom: none; }
 .dmv-root .dmv-row:hover .dmv-td { background: var(--dmv-row-hover); }
 .dmv-root .dmv-table .dmv-td-num { text-align: right; }
 
@@ -196,10 +195,6 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 	color: var(--sol-ink-accent);
 	font-weight: 600;
 }
-.dmv-row.is-top .dmv-td-rank {
-	box-shadow: inset 2px 0 0 var(--sol-emphasis);
-}
-
 .dmv-root .dmv-table .dmv-td-option { white-space: nowrap; }
 
 .dmv-root .dmv-link {
@@ -430,6 +425,155 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 .dmv-series-5 { --dmv-series: var(--dmv-series-5); }
 .dmv-series-6 { --dmv-series: var(--dmv-series-6); }
 .dmv-series-7 { --dmv-series: var(--dmv-series-7); }
+
+/* Score stays pinned to the right edge while the criteria scroll under it. */
+.dmv-root .dmv-table .dmv-th-score,
+.dmv-root .dmv-table .dmv-weights-row .dmv-th:last-child,
+.dmv-root .dmv-table .dmv-td-score {
+	position: sticky;
+	right: 0;
+	z-index: 1;
+	box-shadow: inset 1px 0 0 var(--dmv-hairline);
+}
+.dmv-root .dmv-table .dmv-td-score { background: var(--sol-surface); }
+.dmv-root .dmv-row:hover .dmv-td-score { background: linear-gradient(var(--dmv-row-hover), var(--dmv-row-hover)), var(--sol-surface); }
+.dmv-root .dmv-table .dmv-th-score { background: var(--dmv-band); }
+.dmv-root .dmv-weights-row .dmv-th:last-child { background: color-mix(in srgb, var(--sol-frame) calc(var(--sol-header-tint) / 2), var(--sol-surface)); }
+
+/* Rank and Option stay pinned to the left edge, so a scrolled row still says whose it is. */
+.dmv-root .dmv-table .dmv-th-rank,
+.dmv-root .dmv-table .dmv-td-rank {
+	position: sticky;
+	left: 0;
+	z-index: 1;
+	width: 34px;
+	min-width: 34px;
+	max-width: 34px;
+	box-sizing: border-box;
+}
+.dmv-root .dmv-table .dmv-th-option,
+.dmv-root .dmv-table .dmv-td-option {
+	position: sticky;
+	left: 34px;
+	z-index: 1;
+	box-shadow: inset -1px 0 0 var(--dmv-hairline);
+}
+.dmv-root .dmv-table .dmv-td-rank,
+.dmv-root .dmv-table .dmv-td-option { background: var(--sol-surface); }
+.dmv-root .dmv-row:hover .dmv-td-rank,
+.dmv-root .dmv-row:hover .dmv-td-option { background: linear-gradient(var(--dmv-row-hover), var(--dmv-row-hover)), var(--sol-surface); }
+.dmv-root .dmv-head .dmv-th-rank,
+.dmv-root .dmv-head .dmv-th-option { background: var(--dmv-band); }
+.dmv-root .dmv-weights-row .dmv-th:first-child { position: sticky; left: 0; z-index: 1; }
+.dmv-root .dmv-row.is-top .dmv-td-rank { box-shadow: inset 2px 0 0 var(--sol-emphasis); }
+.dmv-foot { position: sticky; left: 4px; display: inline-flex; align-items: center; gap: 4px; }
+
+/* ── Buttons beyond the toolbar pills ────────────────────── */
+/* The look styles every button as a pill, so each class here clears its selector. */
+
+body .dmv-root button.dmv-icon-btn:not(.clickable-icon):not(.mod-cta):not(.mod-warning) {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	background: var(--sol-sunken);
+	border: 1px solid var(--sol-border);
+	border-radius: 50%;
+	box-shadow: none;
+	color: var(--sol-text-dim);
+	cursor: pointer;
+}
+body .dmv-root button.dmv-icon-btn:not(.clickable-icon):not(.mod-cta):not(.mod-warning):hover { background: var(--sol-btn-hover); border-color: var(--sol-border-strong); color: var(--sol-text); }
+.dmv-icon-btn svg { width: 14px; height: 14px; }
+.dmv-toolbar > .dmv-icon-btn { margin-left: -6px; }
+
+body .dmv-root button.dmv-head-btn:not(.clickable-icon):not(.mod-cta):not(.mod-warning) {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	height: auto;
+	padding: 1px 2px 1px 4px;
+	margin: -1px -2px -1px 0;
+	font: inherit;
+	font-weight: 600;
+	color: inherit;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	box-shadow: none;
+	cursor: pointer;
+}
+body .dmv-root button.dmv-head-btn:not(.clickable-icon):not(.mod-cta):not(.mod-warning):hover { background: color-mix(in srgb, var(--sol-text) 8%, transparent); }
+.dmv-head-chevron { display: inline-flex; color: var(--sol-text-muted); }
+.dmv-head-chevron svg { width: 12px; height: 12px; }
+body .dmv-root button.dmv-head-btn:not(.clickable-icon):not(.mod-cta):not(.mod-warning):not(:hover) .dmv-head-chevron { opacity: 0.5; }
+
+.dmv-root input.dmv-name-input[type] { width: 11ch; text-align: left; font-family: var(--font-interface); }
+
+body .dmv-root button.dmv-flip:not(.clickable-icon):not(.mod-cta):not(.mod-warning) {
+	height: 16px;
+	padding: 0 5px;
+	font-family: var(--font-monospace);
+	font-size: 10px;
+	color: var(--sol-ink-accent);
+	background: color-mix(in srgb, var(--sol-accent) 12%, transparent);
+	border: 1px solid transparent;
+	border-radius: 999px;
+	box-shadow: none;
+	cursor: pointer;
+}
+body .dmv-root button.dmv-flip:not(.clickable-icon):not(.mod-cta):not(.mod-warning):hover { border-color: var(--sol-edge); }
+body .dmv-root button.dmv-flip:not(.clickable-icon):not(.mod-cta):not(.mod-warning):disabled { cursor: default; }
+.dmv-flip.is-never {
+	font-family: var(--font-interface);
+	font-size: 10px;
+	line-height: 16px;
+	color: var(--sol-text-muted);
+}
+.dmv-root .dmv-weights-row .dmv-th-option .dmv-caption:nth-child(3) { line-height: 16px; }
+
+body .dmv-root button.dmv-text-btn:not(.clickable-icon):not(.mod-cta):not(.mod-warning) {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 22px;
+	padding: 0 8px 0 4px;
+	font: inherit;
+	font-size: 11px;
+	color: var(--sol-text-muted);
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 999px;
+	box-shadow: none;
+	cursor: pointer;
+}
+body .dmv-root button.dmv-text-btn:not(.clickable-icon):not(.mod-cta):not(.mod-warning):hover { color: var(--sol-text); background: var(--sol-btn-hover); border-color: var(--sol-border); }
+.dmv-text-btn-icon { display: inline-flex; }
+.dmv-text-btn-icon svg { width: 12px; height: 12px; }
+.dmv-root .dmv-table .dmv-new-row .dmv-td { padding: 3px 4px; border-bottom: none; }
+.dmv-foot .dmv-name-input { margin-left: 4px; }
+
+/* An unscored cell shows its 0 faintly, so gaps read at a glance. */
+.dmv-root input.dmv-value-input[type].is-blank {
+	background: color-mix(in srgb, var(--sol-text) 4%, transparent);
+	border-style: dashed;
+	border-color: var(--sol-border);
+}
+
+/* ── Leader line ─────────────────────────────────────────── */
+
+.dmv-lead {
+	margin: -2px 0 8px 2px;
+	font-size: 12px;
+	color: var(--sol-text-dim);
+	text-wrap-style: balance;
+}
+.dmv-root .dmv-lead .dmv-lead-name { color: var(--sol-text-bright); font-weight: 600; }
+.dmv-lead-margin { font-family: var(--font-monospace); color: var(--sol-ink-accent); }
+
+.dmv-state-action { margin-top: 8px; }
 
 /* ── Phone ───────────────────────────────────────────────── */
 

@@ -3,16 +3,19 @@
  * columns are the criteria.
  */
 import type { App, BasesEntry, BasesEntryGroup, BasesPropertyId } from 'obsidian';
-import { cellsOf, scoreColumns, scoreRow } from './scores.ts';
+import { cellsOf, scoreColumns, scoreRow, withListed } from './scores.ts';
 import type { DecisionItem, ItemGroup, MatrixCriterion } from './types.ts';
+import { listedCriteria } from './weights.ts';
 import type { WeightsRecord } from './weights.ts';
 
 function rowOf(app: App, entry: BasesEntry, scoresKey: string): WeightsRecord | null {
 	return scoreRow(app.metadataCache.getFileCache(entry.file)?.frontmatter?.[scoresKey]);
 }
 
-export function detectCriteria(app: App, entries: BasesEntry[], scoresKey: string): MatrixCriterion[] {
-	return scoreColumns(entries.map(e => rowOf(app, e, scoresKey))).map(c => ({ ...c, label: c.name }));
+/** The Scores columns across the notes, then any criterion only the Weights frame names so far. */
+export function detectCriteria(app: App, entries: BasesEntry[], scoresKey: string, weights: WeightsRecord[] | null): MatrixCriterion[] {
+	const columns = scoreColumns(entries.map(e => rowOf(app, e, scoresKey)));
+	return withListed(columns, listedCriteria(weights)).map(c => ({ ...c, label: c.name }));
 }
 
 function toItem(app: App, entry: BasesEntry, criteria: MatrixCriterion[], scoresKey: string): DecisionItem {

@@ -19,6 +19,23 @@ Both views have two controls, saved with the view:
 - **Normalize**: Raw, ÷ Max (the default) or Rank. It puts criteria on one footing, so dollars and out-of-10 ratings compare. ÷ Max divides each criterion by its largest value. Rank keeps only the order, worst 0 to best 1. A criterion's own Norm overrides it.
 - **Output**: Summary or Breakdown. Breakdown shows each criterion's signed contribution, which add up to the Score, so a negative weight reads as the penalty it is. In the Rankings view each bar splits into those contributions.
 
+## Working in the matrix
+
+- **Enter** or **↓** moves down a column and **↑** moves up, like a spreadsheet. A blank cell shows a faint dashed 0 so gaps are easy to spot.
+- In a Weight field, **↑** and **↓** step it by 1, and by 0.1 with **Shift**.
+- **Add Criterion** under the table names a new criterion and adds its row to the Weights frame. Its column is ready for values straight away.
+- A criterion's header menu has **Rename** (the Scores frame on every note and the Weights row), **Lower Is Better** (flips the weight's sign) and **Remove Criterion**.
+- **New Option** starts a note in the base with a Scores row holding every criterion.
+- Hover an option's name for a page preview, or right-click it for the file menu.
+- The Rank, Option and Score columns stay put while a wide matrix scrolls.
+- **⋯** in the toolbar has **Copy as Markdown**, which copies the ranking as a table (with the contributions under Breakdown), and **Reset Weights**.
+
+## How close is the call?
+
+Above each view a line names the leader, the runner-up and the margin between them, or says who is tied for first.
+
+Under each weight, **Flips at** is the weight at which a different option would take first place if every other weight stayed put. A flip point near the current weight means the decision hangs on that weight; **never** means no weight on that criterion changes the winner. Clicking a flip point sets the weight to it.
+
 ## Scoring
 
 - Score = `Σ(value × weight) / Σ|weight|`, rounded to 4 decimal places.

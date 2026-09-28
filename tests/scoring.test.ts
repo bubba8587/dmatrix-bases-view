@@ -1,10 +1,10 @@
 // Mirrors solenoid tests/graph/decisionMatrix.test.ts, so the view and the node rank alike.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { scoreMatrix, parseNormalize } from '../src/scoring.ts';
+import { scoreMatrix, parseNormalize, flipWeights, leadOf } from '../src/scoring.ts';
 import type { Cell, Normalize } from '../src/scoring.ts';
-import { scoreColumns, scoreRow, cellsOf, setScore } from '../src/scores.ts';
-import { resolveWeights, setWeight, setNorm, defaultFrame, layoutOf } from '../src/weights.ts';
+import { scoreColumns, scoreRow, cellsOf, setScore, withListed, renameScore, dropScore } from '../src/scores.ts';
+import { resolveWeights, setWeight, setNorm, defaultFrame, layoutOf, addCriterion, renameCriterion, removeCriterion, listedCriteria } from '../src/weights.ts';
 
 // Options A, B, C; criteria quality and cost.
 const quality: Cell[] = [8, 6, 10];
@@ -165,5 +165,66 @@ describe('Scores frame', () => {
 		const before = [{ cost: 1, speed: 2 }];
 		assert.deepEqual(setScore(before, 'speed', null), [{ cost: 1, speed: null }]);
 		assert.equal(before[0].speed, 2);
+	});
+});
+
+describe('flipWeights', () => {
+	it('finds the weight where the leader changes', () => {
+		// Raw, weights [2, -1]: A ∝ 2·8 − 3 = 13, B ∝ 11, C ∝ 11, so A leads.
+		const r = run([2, -1], 'none');
+		assert.deepEqual(r.ranks, [1, 2, 2]);
+		// Quality weight w: A − B = 2w − 2 (ties at 1), A − C = −2w + 6 (ties at 3); both 1 from 2.
+		// Cost weight v: A − B = 4 + 2v (ties at −2), A − C = −4 − 6v... A − C = 2·(8 − 10) + (3 − 9)·v = −4 − 6v (ties at −2/3).
+		const flips = flipWeights(r);
+		assert.ok(flips[0] === 1 || flips[0] === 3);
+		assert.equal(flips[1], -0.67);
+	});
+
+	it('is null on a tie for first', () => {
+		assert.deepEqual(flipWeights(run([1, -1], 'none')), [null, null]);
+	});
+
+	it('crossing the flip weight really hands first place over', () => {
+		const r = run([3, -2], 'none');
+		const leader = r.ranks.indexOf(1);
+		flipWeights(r).forEach((at, k) => {
+			if (at === null) return;
+			const w = [3, -2];
+			w[k] = at + Math.sign(at - w[k]) * 0.05;
+			const after = scoreMatrix({ columns: [quality, cost], weights: w, norms: [], normalize: 'none' });
+			assert.notEqual(after.ranks[leader], 1, `criterion ${k} at ${w[k]}`);
+		});
+	});
+});
+
+describe('leadOf', () => {
+	it('reports the margin, or every tied leader', () => {
+		assert.deepEqual(leadOf(run([], 'none')), { leaders: [2], margin: 4 });
+		assert.deepEqual(leadOf(run([1, -1], 'none')), { leaders: [0, 1], margin: null });
+	});
+});
+
+describe('criterion edits', () => {
+	const cost = { name: 'cost', label: 'cost' };
+	it('lists a weights-only criterion as an empty column', () => {
+		assert.deepEqual(withListed([{ name: 'cost', logical: false }], ['COST', 'noise', ' ']), [
+			{ name: 'cost', logical: false },
+			{ name: 'noise', logical: false },
+		]);
+	});
+
+	it('adds, renames and removes a Weights row', () => {
+		const added = addCriterion(addCriterion([], 'cost'), 'noise');
+		assert.deepEqual(added, [{ Criterion: 'cost', Weight: 1, Norm: null }, { Criterion: 'noise', Weight: 1, Norm: null }]);
+		assert.deepEqual(listedCriteria(added), ['cost', 'noise']);
+		assert.equal(renameCriterion(added, cost, 'price')[0].Criterion, 'price');
+		assert.deepEqual(listedCriteria(removeCriterion(added, cost)), ['noise']);
+	});
+
+	it('renames and drops a Scores column in place', () => {
+		assert.deepEqual(Object.keys(renameScore([{ a: 1, cost: 2, b: 3 }], 'cost', 'price')![0]), ['a', 'price', 'b']);
+		assert.equal(renameScore([{ a: 1 }], 'cost', 'price'), null);
+		assert.deepEqual(dropScore([{ a: 1, cost: 2 }], 'cost'), [{ a: 1 }]);
+		assert.equal(dropScore('x', 'cost'), null);
 	});
 });

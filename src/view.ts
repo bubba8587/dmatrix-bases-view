@@ -4,12 +4,13 @@
  * leader line, option links, criterion edits, and focus that survives a re-render.
  */
 import { BasesView, Menu, Modal, Notice, TFile, setIcon } from 'obsidian';
+import type { Events } from 'obsidian';
 import type { App, BasesAllOptions, BasesEntry, BasesEntryGroup, HoverParent, HoverPopover, QueryController } from 'obsidian';
 import { groupsOf, readMatrix } from './data.ts';
 import type { ColumnType, PluginColumnTypes } from './frame.ts';
 import { fillBlanks, flipWeights, formatScore, leadOf, scoreMatrix } from './scoring.ts';
 import type { Detail, MatrixResult, Normalize } from './scoring.ts';
-import { assignFrameType, frameChip, loadColumnTypes, recordColumnTypes, releaseChips, solenoid } from './solenoid.ts';
+import { assignFrameType, solenoid } from './solenoid.ts';
 import { DEFAULT_SCORES_PROPERTY, DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
 import type { DecisionItem, ItemGroup, MatrixCriterion } from './types.ts';
 import { dropScore, renameScore, setScore } from './scores.ts';
@@ -113,12 +114,19 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		this.registerEvent(this.app.metadataCache.on('changed', (file) => {
 			if (file === this.weightsNote()) this.render();
 		}));
-		// A column type picked in a note's own Frame editor changes no YAML, so look again on the way back.
+		// A column type picked in the Frame editor changes no YAML: Solenoid Properties says so with an
+		// event, and a release without one is asked again on the way back to this note.
+		const event = solenoid(this.app)?.columnTypesEvent;
+		if (event) {
+			this.registerEvent((this.app.workspace as Events).on(event, (key: unknown) => {
+				if (key === this.scoresProperty || key === this.weightsProperty) void this.refreshPicks();
+			}));
+		}
 		this.registerEvent(this.app.workspace.on('active-leaf-change', () => void this.refreshPicks()));
 	}
 
 	onunload(): void {
-		releaseChips(this.app, this.rootEl);
+		solenoid(this.app)?.release(this.rootEl);
 	}
 
 	onDataUpdated(): void {
@@ -197,18 +205,18 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 
 	/** Records the types of columns Solenoid Properties has none for yet; a type already set stays. */
 	private async typeColumns(key: string, wanted: [string | null, ColumnType][]): Promise<void> {
-		const have = (await loadColumnTypes(this.app))[key] ?? {};
+		const have = (await this.loadPicks())[key] ?? {};
 		const add: Record<string, ColumnType> = {};
 		for (const [name, type] of wanted) if (name && !have[name]) add[name] = type;
 		if (Object.keys(add).length === 0) return;
-		await recordColumnTypes(this.app, key, add);
+		await solenoid(this.app)?.setColumnTypes(key, add);
 		await this.refreshPicks();
 	}
 
 	private async replaceColumnTypes(key: string, edit: (picks: Record<string, ColumnType>) => void): Promise<void> {
-		const next: Record<string, ColumnType> = { ...((await loadColumnTypes(this.app))[key] ?? {}) };
+		const next: Record<string, ColumnType> = { ...((await this.loadPicks())[key] ?? {}) };
 		edit(next);
-		await recordColumnTypes(this.app, key, next, true);
+		await solenoid(this.app)?.setColumnTypes(key, next, true);
 		await this.refreshPicks();
 	}
 
@@ -314,7 +322,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		const root = this.rootEl;
 		const memo = this.rememberFocus();
 		let scrollLeft = root.querySelector('.dmv-table-wrap')?.scrollLeft ?? 0;
-		releaseChips(this.app, root);
+		solenoid(this.app)?.release(root);
 		root.empty();
 		this.model = null;
 
@@ -389,9 +397,18 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		return this.picks[this.weightsProperty] ?? {};
 	}
 
+	/** The column types Solenoid Properties has for this view's two frame properties. */
+	private async loadPicks(): Promise<PluginColumnTypes> {
+		try {
+			return (await solenoid(this.app)?.columnTypes([this.scoresProperty, this.weightsProperty])) ?? {};
+		} catch {
+			return {};
+		}
+	}
+
 	/** Re-renders when Solenoid Properties' picks have changed since the last read. */
 	private async refreshPicks(): Promise<void> {
-		const next = await loadColumnTypes(this.app);
+		const next = await this.loadPicks();
 		const json = JSON.stringify(next);
 		if (json === this.picksJson) return;
 		this.picks = next;
@@ -451,7 +468,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		} else {
 			const chip = weights.createSpan('dmv-chip');
 			// The editor saves its column types beside the YAML, a moment after this fires.
-			frameChip(this.app, chip, key, frame, (next) => {
+			solenoid(this.app)?.frameChip(chip, key, frame, (next) => {
 				void this.writeWeights(next);
 				window.setTimeout(() => void this.refreshPicks(), 400);
 			});

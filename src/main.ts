@@ -2,7 +2,7 @@ import { Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import type { App, SettingDefinitionItem } from 'obsidian';
 import { DecisionMatrixView } from './matrix-view.ts';
 import { DecisionMatrixRankingsView } from './rankings-view.ts';
-import { assignFrameType, recordColumnTypes, solenoid } from './solenoid.ts';
+import { assignFrameType, solenoid } from './solenoid.ts';
 import { DEFAULT_SCORES_PROPERTY, DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
 import { HOVER_SOURCE, viewOptions } from './view.ts';
 
@@ -136,9 +136,9 @@ async function createExamples(app: App): Promise<void> {
 	assignFrameType(app, DEFAULT_WEIGHTS_PROPERTY);
 	assignFrameType(app, DEFAULT_SCORES_PROPERTY);
 	// Typed as the Frame editor would type them on save.
-	await recordColumnTypes(app, DEFAULT_SCORES_PROPERTY,
+	await solenoid(app)?.setColumnTypes(DEFAULT_SCORES_PROPERTY,
 		Object.fromEntries(Object.entries(LAPTOPS[0].scores).map(([k, v]) => [k, typeof v === 'boolean' ? 'logical' : 'number'])));
-	await recordColumnTypes(app, DEFAULT_WEIGHTS_PROPERTY, { Criterion: 'string', Weight: 'number', Norm: 'string' });
+	await solenoid(app)?.setColumnTypes(DEFAULT_WEIGHTS_PROPERTY, { Criterion: 'string', Weight: 'number', Norm: 'string' });
 	let created = 0;
 	for (const f of files) {
 		if (vault.getAbstractFileByPath(f.path)) continue;

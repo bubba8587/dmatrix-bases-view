@@ -214,13 +214,20 @@ export class DecisionMatrixView extends DecisionView {
 			box.addEventListener('change', () => void this.writeCell(item, c, box.checked));
 			return;
 		}
-		const cls = `dmv-input dmv-value-input${sub ? ' is-sub' : ''}${cell === null ? ' is-blank' : ''}`;
-		const input = draftInput(td, cls, cell === null ? '' : String(cell), (next) => {
+		// A value the number column cannot read is ignored: it scores as blank, and shows as written.
+		const ignored = typeof cell === 'number' && Number.isNaN(cell);
+		const cls = `dmv-input dmv-value-input${sub ? ' is-sub' : ''}${cell === null ? ' is-blank' : ''}${ignored ? ' is-ignored' : ''}`;
+		const input = draftInput(td, cls, cell === null ? '' : ignored ? item.raw[j] : String(cell), (next) => {
 			if (next === '') { void this.writeCell(item, c, null); return; }
 			const n = Number(next);
 			if (Number.isFinite(n)) void this.writeCell(item, c, n);
 			else this.render();
-		}, { 'aria-label': `${c.label} of ${item.title}`, placeholder: '0', 'data-dmv-key': cellKey(item, c) });
+		}, {
+			'aria-label': `${c.label} of ${item.title}`,
+			placeholder: '0',
+			'data-dmv-key': cellKey(item, c),
+			...(ignored ? { title: 'Not a number, so it counts as blank' } : {}),
+		});
 		input.addEventListener('keydown', (e) => {
 			const down = e.key === 'Enter' || e.key === 'ArrowDown';
 			if (!down && e.key !== 'ArrowUp') return;

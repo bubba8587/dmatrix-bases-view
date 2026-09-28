@@ -6,7 +6,7 @@
  */
 import type { App } from 'obsidian';
 import { parsePluginColumnTypes } from './frame.ts';
-import type { PluginColumnTypes } from './frame.ts';
+import type { ColumnPicks, PluginColumnTypes } from './frame.ts';
 
 export const SOLENOID_ID = 'solenoid-properties';
 export const FRAME_TYPE = 'solenoid-frame';
@@ -15,6 +15,8 @@ const FRAME_KIND = { id: FRAME_TYPE, name: 'Frame', shape: 'frame' } as const;
 
 interface SolenoidPlugin {
 	loadData(): Promise<unknown>;
+	/** What its own Frame chips call on every save; `replace` sets the property's whole map. */
+	setColumnTypes?(key: string, types: ColumnPicks, replace?: boolean): Promise<void>;
 	chip(el: HTMLElement, kind: typeof FRAME_KIND, key: string, value: unknown, onChange: (next: unknown) => void): ShadowRoot;
 	release(el: Element): void;
 }
@@ -56,6 +58,14 @@ export async function loadColumnTypes(app: App): Promise<PluginColumnTypes> {
 	} catch {
 		return {};
 	}
+}
+
+/**
+ * Records column types for a Frame property, as the Frame editor does when it saves, so a frame this
+ * plugin writes is typed like one written in the editor.
+ */
+export async function recordColumnTypes(app: App, key: string, types: ColumnPicks, replace = false): Promise<void> {
+	await solenoid(app)?.setColumnTypes?.(key, types, replace);
 }
 
 /** Types the property as a Solenoid Frame vault-wide, so the properties panel shows the chip too. */

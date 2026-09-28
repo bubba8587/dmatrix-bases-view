@@ -160,19 +160,3 @@ export function removeCriterion(frame: WeightsRecord[], c: Criterion, picks: Col
 	const r = criterionKey ? rowOf(rowIndex(cols, criterionKey), c) : undefined;
 	return r == null ? frame : frame.filter((_, i) => i !== r);
 }
-
-/** What in a Weights frame makes it read differently than it looks, in the words the view shows. */
-export function weightsProblems(frame: WeightsRecord[] | null, picks: ColumnPicks = {}): string[] {
-	if (!frame || frame.length === 0) return [];
-	const out: string[] = [];
-	const cols = toFrame(frame, picks);
-	const layout = layoutOfFrame(cols);
-	const named = cols.find(c => ['weight', 'weights', 'value'].includes(critKey(c.name)));
-	if (named && named.type !== 'number' && named.values.some(v => v !== null)) {
-		out.push(layout.weightKey
-			? `The ${named.name} column has text in it, so the weights come from ${layout.weightKey}.`
-			: `The ${named.name} column has text in it, so every weight counts as 1.`);
-	}
-	if (!layout.criterionKey) out.push('No text column names the criteria, so every weight counts as 1.');
-	return out;
-}

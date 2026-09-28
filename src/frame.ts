@@ -2,9 +2,9 @@
  * A note's Frame property as Solenoid reads it: YAML records into typed columns. This is a port of
  * Solenoid's Note import (`rowsToFrame` in solenoid `src/graph/nodes/annotation.ts`, with
  * `guessNoteColumnType` and `coerceFrameCell` from `src/graph/frame.ts`), and Solenoid Properties'
- * Frame editor types columns the same way. A column type the user picked in that editor is kept in
- * its `data.json` under `columnTypes[property][column]`, sits above the guess, and every cell is then
- * read as that type. Keep this in step with Solenoid, or the same notes rank differently in each.
+ * Frame editor types columns the same way. The editor records every column's type in its `data.json`
+ * under `columnTypes[property][column]` on each save; that type decides, and every cell is read as
+ * it. The guess only covers a frame the editor has never saved. Keep this in step with Solenoid, or the same notes rank differently in each.
  * No Obsidian imports, so `npm test` covers it.
  */
 
@@ -19,6 +19,8 @@ export interface FrameColumn {
 	name: string;
 	type: ColumnType;
 	values: FrameCell[];
+	/** Each cell's text as written, for showing a value its type cannot read. */
+	raw: string[];
 }
 
 const COLUMN_TYPES: readonly ColumnType[] = ['number', 'string', 'date', 'logical'];
@@ -98,6 +100,7 @@ export function toFrame(records: readonly (Record<string, unknown> | null)[], pi
 			return Array.isArray(v) ? (typeof v[0] === 'object' ? null : v[0] ?? null) : v;
 		});
 		const type = picks[name] ?? noteColumnType(cells);
-		return { name, type, values: cells.map(c => coerceCell(type, rawText(c))) };
+		const raw = cells.map(rawText);
+		return { name, type, values: raw.map(r => coerceCell(type, r)), raw };
 	});
 }

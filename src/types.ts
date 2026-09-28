@@ -15,6 +15,8 @@ export interface DecisionItem {
 	title: string;
 	/** Per criterion, in criteria order. */
 	cells: Cell[];
+	/** Per criterion, the value as written, for showing one a number column cannot read. */
+	raw: string[];
 }
 
 export interface ItemGroup {

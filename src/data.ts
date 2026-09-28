@@ -5,17 +5,15 @@
 import type { App, BasesEntry, BasesEntryGroup, BasesPropertyId } from 'obsidian';
 import type { PluginColumnTypes } from './frame.ts';
 import type { Cell } from './scoring.ts';
-import { scoreProblems, scoreRow, scoreTable, withListed } from './scores.ts';
+import { scoreRow, scoreTable, withListed } from './scores.ts';
 import type { DecisionItem, ItemGroup, MatrixCriterion } from './types.ts';
 import { listedCriteria } from './weights.ts';
 import type { WeightsRecord } from './weights.ts';
 
 export interface MatrixData {
 	criteria: MatrixCriterion[];
-	/** Per note path, one cell per criterion. */
-	cells: Map<string, Cell[]>;
-	/** Columns that read as text because some note has a stray value, with those notes. */
-	problems: { name: string; notes: DecisionItem[] }[];
+	/** Per note path, one cell per criterion, and each as written. */
+	cells: Map<string, { cells: Cell[]; raw: string[] }>;
 }
 
 function titleOf(entry: BasesEntry): string {
@@ -33,30 +31,25 @@ export function readMatrix(
 ): MatrixData {
 	const rows = entries.map(e => scoreRow(app.metadataCache.getFileCache(e.file)?.frontmatter?.[scoresKey]));
 	const table = scoreTable(rows, picks[scoresKey]);
-	const problems = scoreProblems(rows, picks[scoresKey]).map(p => ({
-		name: p.name,
-		notes: p.notes.map((i): DecisionItem => ({ id: entries[i].file.path, file: entries[i].file, title: titleOf(entries[i]), cells: [] })),
-	}));
-	// A column demoted to text by a stray value is not a pending criterion: its notes do have values.
-	const demoted = new Set(problems.map(p => p.name.trim().toLowerCase()));
-	const listed = listedCriteria(weights, picks[weightsKey]).filter(n => !demoted.has(n.trim().toLowerCase()));
-	const columns = withListed(table.columns, listed);
+	const columns = withListed(table.columns, listedCriteria(weights, picks[weightsKey]), table.names);
 	const criteria = columns.map(c => ({ ...c, label: c.name }));
-	const cells = new Map(entries.map((e, i) => [
-		e.file.path,
-		criteria.map((c, j) => (j < table.columns.length ? table.cells[i][j] : null)),
-	]));
-	return { criteria, cells, problems };
+	const n = table.columns.length;
+	const cells = new Map(entries.map((e, i) => [e.file.path, {
+		cells: criteria.map((_, j) => (j < n ? table.cells[i][j] : null)),
+		raw: criteria.map((_, j) => (j < n ? table.raw[i][j] : '')),
+	}]));
+	return { criteria, cells };
 }
 
-export function groupsOf(groupedData: BasesEntryGroup[], cells: Map<string, Cell[]>): ItemGroup[] {
+export function groupsOf(groupedData: BasesEntryGroup[], cells: MatrixData['cells']): ItemGroup[] {
 	return groupedData.map(g => ({
 		key: g.hasKey() ? String(g.key) : '',
 		items: g.entries.map((e): DecisionItem => ({
 			id: e.file.path,
 			file: e.file,
 			title: titleOf(e),
-			cells: cells.get(e.file.path) ?? [],
+			cells: cells.get(e.file.path)?.cells ?? [],
+			raw: cells.get(e.file.path)?.raw ?? [],
 		})),
 	}));
 }

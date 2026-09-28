@@ -53,7 +53,7 @@ scores:
     backlit: true
 ```
 
-The criteria are every such column across the notes in the base, so a note missing a column scores 0 there. The columns are typed the way Solenoid and Solenoid Properties type a Frame: a column is a number column only when every filled cell is a number, so one text cell (`n/a`, or a quoted `"9"`) turns it into a text column and it stops being a criterion. The view says so above the table and links the note with the stray value. A column type picked in Solenoid Properties' Frame editor wins over that guess, as it does in Solenoid: a column picked as a number reads `"9"` as 9 and scores `n/a` as 0. Typing a value into the matrix for a note with no Scores frame creates one. Stacked note by note, these rows are the Scores frame Solenoid's Decision Matrix takes.
+The criteria are every such column across the notes in the base, so a note missing a column scores 0 there. Each column's type is the one set in Solenoid Properties' Frame editor, which records it on every save, and the view records the types of the columns it writes too. A number or checkbox column is a criterion. A value a number column can't read, like `n/a`, is ignored: it counts as blank, as it does in Solenoid, and shows struck through so you can see it wasn't counted. A frame the editor has never saved is typed the way the editor would show it.
 
 ## The Weights frame
 

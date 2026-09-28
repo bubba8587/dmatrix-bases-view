@@ -6,15 +6,15 @@
 import { BasesView, Menu, Modal, Notice, TFile, setIcon } from 'obsidian';
 import type { App, BasesAllOptions, BasesEntry, BasesEntryGroup, HoverParent, HoverPopover, QueryController } from 'obsidian';
 import { groupsOf, readMatrix } from './data.ts';
-import type { PluginColumnTypes } from './frame.ts';
+import type { ColumnPicks, ColumnType, PluginColumnTypes } from './frame.ts';
 import { flipWeights, formatScore, leadOf, scoreMatrix } from './scoring.ts';
 import type { Detail, MatrixResult, Normalize } from './scoring.ts';
-import { assignFrameType, frameChip, loadColumnTypes, releaseChips, solenoid } from './solenoid.ts';
+import { assignFrameType, frameChip, loadColumnTypes, recordColumnTypes, releaseChips, solenoid } from './solenoid.ts';
 import { DEFAULT_SCORES_PROPERTY, DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
 import type { DecisionItem, ItemGroup, MatrixCriterion } from './types.ts';
 import { dropScore, renameScore, setScore } from './scores.ts';
 import {
-	addCriterion, defaultFrame, isFrameYaml, removeCriterion, renameCriterion, resolveWeights, setNorm, setWeight, weightsProblems,
+	addCriterion, defaultFrame, isFrameYaml, layoutOf, removeCriterion, renameCriterion, resolveWeights, setNorm, setWeight,
 } from './weights.ts';
 import type { ResolvedWeights, WeightsRecord } from './weights.ts';
 
@@ -175,6 +175,27 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		await this.app.fileManager.processFrontMatter(note, (fm: Record<string, unknown>) => {
 			fm[this.weightsProperty] = next;
 		});
+		if (isFrameYaml(next)) {
+			const { criterionKey, weightKey, normKey } = layoutOf(next, this.weightPicks);
+			await this.typeColumns(this.weightsProperty, [[criterionKey, 'string'], [weightKey, 'number'], [normKey, 'string']]);
+		}
+	}
+
+	/** Records the types of columns Solenoid Properties has none for yet; a type already set stays. */
+	private async typeColumns(key: string, wanted: [string | null, ColumnType][]): Promise<void> {
+		const have = (await loadColumnTypes(this.app))[key] ?? {};
+		const add: Record<string, ColumnType> = {};
+		for (const [name, type] of wanted) if (name && !have[name]) add[name] = type;
+		if (Object.keys(add).length === 0) return;
+		await recordColumnTypes(this.app, key, add);
+		await this.refreshPicks();
+	}
+
+	private async replaceColumnTypes(key: string, edit: (picks: Record<string, ColumnType>) => void): Promise<void> {
+		const next: Record<string, ColumnType> = { ...((await loadColumnTypes(this.app))[key] ?? {}) };
+		edit(next);
+		await recordColumnTypes(this.app, key, next as ColumnPicks, true);
+		await this.refreshPicks();
 	}
 
 	protected async editWeights(edit: (frame: WeightsRecord[]) => WeightsRecord[]): Promise<void> {
@@ -199,6 +220,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		await this.app.fileManager.processFrontMatter(item.file, (fm: Record<string, unknown>) => {
 			fm[key] = setScore(fm[key], c.name, value);
 		});
+		await this.typeColumns(key, [[c.name, c.logical ? 'logical' : 'number']]);
 	}
 
 	/** Rewrites every option's Scores frame that `edit` changes (null means leave the note alone). */
@@ -232,6 +254,9 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		if (!to || to === c.name) return;
 		if (this.nameTaken(to, c)) { new Notice(`There is already a criterion named ${to}.`); return; }
 		await this.editScores(v => renameScore(v, c.name, to));
+		if (this.picks[this.scoresProperty]?.[c.name]) {
+			await this.replaceColumnTypes(this.scoresProperty, p => { p[to] = p[c.name]; delete p[c.name]; });
+		}
 		if (this.weightsFrame(this.weightsNote())) await this.editWeights(f => renameCriterion(f, c, to, this.weightPicks));
 	}
 
@@ -241,6 +266,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		const where = notes === 1 ? '1 note' : `${notes} notes`;
 		new ConfirmModal(this.app, `Remove ${c.label}?`, `Its scores are deleted from ${where} and its row from the Weights frame.`, 'Remove', async () => {
 			await this.editScores(v => dropScore(v, c.name));
+			if (this.picks[this.scoresProperty]?.[c.name]) await this.replaceColumnTypes(this.scoresProperty, p => { delete p[c.name]; });
 			if (this.weightsFrame(this.weightsNote())) await this.editWeights(f => removeCriterion(f, c, this.weightPicks));
 		}).open();
 	}
@@ -291,7 +317,6 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		const canEditCriteria = note !== null && frame !== null;
 
 		this.renderToolbar(root.createDiv('dmv-toolbar'), note, frame, criteria);
-		this.renderProblems(root, frame ?? null, matrix.problems);
 		void this.refreshPicks();
 
 		if (entries.length === 0) {
@@ -354,25 +379,6 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		this.picks = next;
 		this.picksJson = json;
 		this.render();
-	}
-
-	/** Frames that read differently than they look: said once, above the table. */
-	private renderProblems(parent: HTMLElement, frame: WeightsRecord[] | null, scores: { name: string; notes: DecisionItem[] }[]): void {
-		const weights = weightsProblems(frame, this.weightPicks);
-		if (weights.length === 0 && scores.length === 0) return;
-		const box = parent.createDiv('dmv-problems');
-		for (const text of weights) box.createDiv({ text, cls: 'dmv-problem' });
-		for (const p of scores) {
-			const line = box.createDiv('dmv-problem');
-			line.createSpan({ text: `${p.name} is not a criterion: ` });
-			const shown = p.notes.slice(0, 3);
-			shown.forEach((item, k) => {
-				if (k > 0) line.createSpan({ text: k === shown.length - 1 && p.notes.length <= 3 ? ' and ' : ', ' });
-				this.optionLink(line, item, 'dmv-link dmv-problem-note');
-			});
-			if (p.notes.length > 3) line.createSpan({ text: ` and ${p.notes.length - 3} more` });
-			line.createSpan({ text: ` ${p.notes.length === 1 ? 'has' : 'have'} text in that column.` });
-		}
 	}
 
 	private renderLead(parent: HTMLElement, m: Model): void {

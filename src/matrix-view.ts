@@ -62,6 +62,7 @@ export class DecisionMatrixView extends DecisionView {
 
 		this.heldOrder = this.drawn.map(it => it.id);
 
+		fitColumns(table);
 		if (!m.canEditCriteria) return;
 		const foot = tbody.createEl('tr', { cls: 'dmv-new-row' }).createEl('td', { cls: 'dmv-td', attr: { colspan: String(span) } }).createDiv('dmv-foot');
 		if (this.naming === '') this.nameField(foot, '', 'New criterion', (name) => this.addCriterion(name));
@@ -88,7 +89,7 @@ export class DecisionMatrixView extends DecisionView {
 		}
 		m.criteria.forEach((c, j) => {
 			const cell = weights.createEl('th', { cls: 'dmv-th dmv-th-num' }).createDiv('dmv-weight-cell');
-			this.renderWeightInput(cell, c, m.resolved.weights[j], m.canEditCriteria);
+			this.renderWeightInput(cell, c, j, m.resolved.weights[j], m.canEditCriteria);
 			this.renderNormSelect(cell, c, m.resolved.norms[j], m.canEditCriteria);
 			if (!anyFlip) return;
 			const flip = m.flips[j];
@@ -144,7 +145,7 @@ export class DecisionMatrixView extends DecisionView {
 		window.setTimeout(() => { input.focus(); input.select(); });
 	}
 
-	private renderWeightInput(parent: HTMLElement, c: MatrixCriterion, weight: number, editable: boolean): void {
+	private renderWeightInput(parent: HTMLElement, c: MatrixCriterion, j: number, weight: number, editable: boolean): void {
 		const input = draftInput(parent, 'dmv-input dmv-weight-input', String(weight), (text) => {
 			const w = text === '' ? 1 : Number(text);
 			if (Number.isFinite(w)) this.setWeight(c, w);
@@ -153,6 +154,7 @@ export class DecisionMatrixView extends DecisionView {
 			'aria-label': `Weight of ${c.label}`,
 			title: 'Weight. Negative when lower is better. Up and Down step it by 1, with Shift by 0.1.',
 			'data-dmv-key': weightKey(c),
+			'data-dmv-col': String(j),
 		});
 		input.disabled = !editable;
 		input.addEventListener('keydown', (e) => {
@@ -242,6 +244,7 @@ export class DecisionMatrixView extends DecisionView {
 			'aria-label': `${c.label} of ${item.title}`,
 			placeholder: median === null ? '' : formatScore(median),
 			'data-dmv-key': cellKey(item, c),
+			'data-dmv-col': String(j),
 			...(ignored ? { title: median === null ? 'Not a number, so it is not scored' : 'Not a number, so it scores as this criterion\'s median' } : {}),
 			...(cell === null && median !== null ? { title: 'Blank, so it scores as this criterion\'s median' } : {}),
 		});
@@ -267,4 +270,23 @@ function textButton(parent: HTMLElement, text: string, onClick: () => void): voi
 	setIcon(btn.createSpan('dmv-text-btn-icon'), 'plus');
 	btn.createSpan({ text });
 	btn.addEventListener('click', onClick);
+}
+
+/**
+ * Sizes every value and weight field in a column to the column's longest value, placeholder or
+ * weight, so digits always have room, and lets a field grow while it is typed in.
+ */
+function fitColumns(table: HTMLElement): void {
+	const byCol = new Map<string, HTMLInputElement[]>();
+	for (const input of Array.from(table.querySelectorAll<HTMLInputElement>('input[data-dmv-col]'))) {
+		const col = input.dataset.dmvCol!;
+		byCol.set(col, [...(byCol.get(col) ?? []), input]);
+	}
+	for (const inputs of byCol.values()) {
+		const chars = Math.max(3, ...inputs.map(i => Math.max(i.value.length, i.placeholder.length)));
+		for (const input of inputs) {
+			input.size = chars + 1;
+			input.addEventListener('input', () => { if (input.value.length + 1 > input.size) input.size = input.value.length + 1; });
+		}
+	}
 }

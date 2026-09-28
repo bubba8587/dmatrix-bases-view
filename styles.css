@@ -5,6 +5,8 @@
  */
 
 .dmv-root {
+	/* Room for a tied rank past nine (=10) in the value face. */
+	--dmv-rank-w: 46px;
 	--dmv-band: color-mix(in srgb, var(--sol-frame) var(--sol-header-tint), var(--sol-surface));
 	--dmv-hairline: color-mix(in srgb, var(--sol-frame) var(--sol-mix-hairline), var(--sol-border));
 	--dmv-track: color-mix(in srgb, var(--sol-text) 8%, transparent);
@@ -197,7 +199,28 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 	color: var(--sol-ink-accent);
 	font-weight: 600;
 }
-.dmv-root .dmv-table .dmv-td-option { white-space: nowrap; }
+.dmv-root .dmv-table .dmv-td-option {
+	min-width: 11em;
+	max-width: 16em;
+	white-space: normal;
+	text-wrap-style: balance;
+	overflow-wrap: anywhere;
+}
+/* A long criterion name wraps within its header; the value fields below set the column's width. */
+.dmv-root .dmv-table .dmv-th-criterion {
+	max-width: 11em;
+	white-space: normal;
+}
+body .dmv-root button.dmv-head-btn:not(.clickable-icon):not(.mod-cta):not(.mod-warning) {
+	max-width: 100%;
+	white-space: normal;
+}
+body .dmv-root button.dmv-head-btn:not(.clickable-icon):not(.mod-cta):not(.mod-warning) > span:first-child {
+	min-width: 0;
+	text-align: right;
+	text-wrap-style: balance;
+	overflow-wrap: anywhere;
+}
 
 .dmv-root .dmv-link {
 	color: var(--sol-text);
@@ -217,8 +240,8 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 
 /* Fields: sunken, 4px, value face, accent border on focus and nothing else. */
 .dmv-root input.dmv-input[type] {
-	width: 6ch;
-	min-width: 4ch;
+	width: auto;
+	min-width: 0;
 	height: 22px;
 	padding: 0 5px;
 	font-family: var(--font-monospace);
@@ -375,9 +398,10 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 .dmv-rank-row.is-top > :first-child { box-shadow: inset 2px 0 0 var(--sol-emphasis); }
 
 .dmv-rank-name {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	max-width: 16em;
+	white-space: normal;
+	text-wrap-style: balance;
+	overflow-wrap: anywhere;
 }
 
 .dmv-track {
@@ -458,15 +482,15 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 	position: sticky;
 	left: 0;
 	z-index: 1;
-	width: 34px;
-	min-width: 34px;
-	max-width: 34px;
+	width: var(--dmv-rank-w);
+	min-width: var(--dmv-rank-w);
+	max-width: var(--dmv-rank-w);
 	box-sizing: border-box;
 }
 .dmv-root .dmv-table .dmv-th-option,
 .dmv-root .dmv-table .dmv-td-option {
 	position: sticky;
-	left: 34px;
+	left: var(--dmv-rank-w);
 	z-index: 1;
 	box-shadow: inset -1px 0 0 var(--dmv-hairline);
 }
@@ -590,6 +614,20 @@ body .dmv-root button.dmv-text-btn:not(.clickable-icon):not(.mod-cta):not(.mod-w
 .dmv-lead-margin { font-family: var(--font-monospace); color: var(--sol-text); }
 
 .dmv-state-action { margin-top: 8px; }
+
+/* ── A narrow view (a split pane, a sidebar, a phone) ────── */
+/* The pinned columns give up room first, so a criterion column still fits beside them. */
+
+.dmv-root { container-type: inline-size; }
+
+@container (max-width: 560px) {
+	.dmv-root { --dmv-rank-w: 38px; }
+	.dmv-root .dmv-table .dmv-td-option { min-width: 7em; max-width: 9em; }
+	.dmv-root .dmv-table .dmv-th,
+	.dmv-root .dmv-table .dmv-td { padding-left: 6px; padding-right: 6px; }
+	.dmv-root .dmv-table .dmv-td-score { min-width: 64px; }
+	.dmv-root .dmv-table .dmv-th-criterion { max-width: 8em; }
+}
 
 /* ── Phone ───────────────────────────────────────────────── */
 

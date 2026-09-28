@@ -1,11 +1,8 @@
-import type { TFile, BasesPropertyId } from 'obsidian';
+import type { TFile } from 'obsidian';
 import type { Cell } from './scoring.ts';
 import type { Criterion } from './weights.ts';
 
 export interface MatrixCriterion extends Criterion {
-	id: BasesPropertyId;
-	/** A note property takes edits in the view; a formula is read-only. */
-	editable: boolean;
 	/** Checkbox criteria edit as a checkbox. */
 	logical: boolean;
 }
@@ -24,3 +21,4 @@ export interface ItemGroup {
 }
 
 export const DEFAULT_WEIGHTS_PROPERTY = 'weights';
+export const DEFAULT_SCORES_PROPERTY = 'scores';

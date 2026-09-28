@@ -1,80 +1,33 @@
 /**
- * Bases rows into the matrix: rows are options (notes), and number or checkbox properties are the
- * criteria, the way Solenoid's Decision Matrix reads a Frame's number and logical columns. Dates and
- * text are never criteria.
+ * Bases rows into the matrix: each note is an option, and its Scores frame's number and checkbox
+ * columns are the criteria.
  */
-import { BooleanValue, NumberValue } from 'obsidian';
-import type { App, BasesEntry, BasesEntryGroup, BasesPropertyId, BasesViewConfig } from 'obsidian';
-import type { Cell } from './scoring.ts';
+import type { App, BasesEntry, BasesEntryGroup, BasesPropertyId } from 'obsidian';
+import { cellsOf, scoreColumns, scoreRow } from './scores.ts';
 import type { DecisionItem, ItemGroup, MatrixCriterion } from './types.ts';
+import type { WeightsRecord } from './weights.ts';
 
-const bareName = (id: string): string => id.slice(id.indexOf('.') + 1);
-
-function readCell(entry: BasesEntry, id: BasesPropertyId): Cell | undefined {
-	const v = entry.getValue(id);
-	if (v instanceof NumberValue) return Number(v.toString());
-	if (v instanceof BooleanValue) return v.isTruthy();
-	if (v == null || v.toString() === '' || v.toString() === 'null') return null;
-	return undefined;
+function rowOf(app: App, entry: BasesEntry, scoresKey: string): WeightsRecord | null {
+	return scoreRow(app.metadataCache.getFileCache(entry.file)?.frontmatter?.[scoresKey]);
 }
 
-/** A column is a criterion when its first scored cell is a number or a checkbox. */
-function kindOf(entries: BasesEntry[], id: BasesPropertyId): 'number' | 'logical' | null {
-	for (const entry of entries) {
-		const c = readCell(entry, id);
-		if (c === null) continue;
-		if (c === undefined) return null;
-		return typeof c === 'boolean' ? 'logical' : 'number';
-	}
-	return null;
+export function detectCriteria(app: App, entries: BasesEntry[], scoresKey: string): MatrixCriterion[] {
+	return scoreColumns(entries.map(e => rowOf(app, e, scoresKey))).map(c => ({ ...c, label: c.name }));
 }
 
-export function detectCriteria(
-	app: App,
-	config: BasesViewConfig,
-	entries: BasesEntry[],
-	skip: string,
-): MatrixCriterion[] {
-	let ids = config.getOrder().filter(id => !id.startsWith('file.'));
-	// A view with no chosen properties (a fresh Rankings view) scores every note property.
-	if (ids.length === 0) {
-		const seen = new Set<string>();
-		for (const entry of entries) {
-			const fm = app.metadataCache.getFileCache(entry.file)?.frontmatter ?? {};
-			for (const key of Object.keys(fm)) seen.add(key);
-		}
-		ids = [...seen].map(k => `note.${k}` as BasesPropertyId);
-	}
-	const out: MatrixCriterion[] = [];
-	for (const id of ids) {
-		const name = bareName(id);
-		if (name === skip || name === 'title') continue;
-		const kind = kindOf(entries, id);
-		if (!kind) continue;
-		out.push({
-			id,
-			name,
-			label: config.getDisplayName(id),
-			editable: id.startsWith('note.'),
-			logical: kind === 'logical',
-		});
-	}
-	return out;
-}
-
-function toItem(entry: BasesEntry, criteria: MatrixCriterion[]): DecisionItem {
+function toItem(app: App, entry: BasesEntry, criteria: MatrixCriterion[], scoresKey: string): DecisionItem {
 	const title = entry.getValue('note.title' as BasesPropertyId)?.toString().trim();
 	return {
 		id: entry.file.path,
 		file: entry.file,
 		title: title && title !== 'null' ? title : entry.file.basename,
-		cells: criteria.map(c => readCell(entry, c.id) ?? null),
+		cells: cellsOf(rowOf(app, entry, scoresKey), criteria),
 	};
 }
 
-export function groupsOf(groupedData: BasesEntryGroup[], criteria: MatrixCriterion[]): ItemGroup[] {
+export function groupsOf(app: App, groupedData: BasesEntryGroup[], criteria: MatrixCriterion[], scoresKey: string): ItemGroup[] {
 	return groupedData.map(g => ({
 		key: g.hasKey() ? String(g.key) : '',
-		items: g.entries.map(e => toItem(e, criteria)),
+		items: g.entries.map(e => toItem(app, e, criteria, scoresKey)),
 	}));
 }

@@ -1,17 +1,17 @@
 # Decision Matrix Bases View
 
-A weighted decision matrix for [Obsidian Bases](https://help.obsidian.md/bases). Each note in the base is an option, its number and checkbox properties are the criteria, and a Weights frame on your decision note says how much each criterion counts. The view scores and ranks the options by the same rules as [Solenoid](https://solenoid-ngc.vercel.app)'s Decision Matrix node, so a decision reads the same in both.
+A weighted decision matrix for [Obsidian Bases](https://help.obsidian.md/bases). Each note in the base is an option with a Scores frame, one column per criterion, and a Weights frame on your decision note says how much each criterion counts. The view scores and ranks the options by the same rules as [Solenoid](https://solenoid-ngc.vercel.app)'s Decision Matrix node, so a decision reads the same in both.
 
 ![The Decision Matrix and Rankings views in the Solenoid look](assets/screenshot.png)
 
 ## Requirements
 
 - Obsidian **1.10.2** or later.
-- The **[Solenoid Properties](https://github.com/bubba8587/Solenoid-Properties)** plugin, enabled. The Weights frame is a Solenoid Properties Frame property, and the view edits it with Solenoid's Frame editor. The view is styled for Solenoid Properties' Solenoid look, so turn that on in its settings.
+- The **[Solenoid Properties](https://github.com/bubba8587/Solenoid-Properties)** plugin, enabled. The Scores and Weights frames are Solenoid Properties Frame properties, and the view edits them with Solenoid's Frame editor. The view is styled for Solenoid Properties' Solenoid look, so turn that on in its settings.
 
 ## Views
 
-- **Decision Matrix**: a table with an option per row and a criterion per column. Each criterion's Weight and Norm sit under its name. Values edit in place and save to the option's note.
+- **Decision Matrix**: a table with an option per row and a criterion per column. Each criterion's Weight and Norm sit under its name. Values edit in place and save to the option's Scores frame.
 - **Decision Matrix Rankings**: every option best first as a labeled bar.
 
 Both views have two controls, saved with the view:
@@ -25,6 +25,19 @@ Both views have two controls, saved with the view:
 - Options rank on the rounded score. Equal scores share a rank, shown as `=2`.
 - A blank value counts as 0, and a checkbox counts as 1 or 0. Dates and text are never criteria.
 - A negative weight favors lower values, like cost or risk.
+
+## The Scores frame
+
+Each option note keeps its scores in one Frame property named `scores`: a single row with a column per criterion. Number and checkbox columns are the criteria; text and date columns are ignored, so a note can carry a vendor name or a release date beside its scores.
+
+```yaml
+scores:
+  - cost: 950
+    performance: 9
+    backlit: true
+```
+
+The criteria are every such column across the notes in the base, so a note missing a column scores 0 there. Typing a value into the matrix for a note with no Scores frame creates one. Stacked note by note, these rows are the Scores frame Solenoid's Decision Matrix takes.
 
 ## The Weights frame
 
@@ -40,7 +53,7 @@ weights:
     Norm: null
 ```
 
-- **Criterion** matches a property name or its Bases display name, ignoring case.
+- **Criterion** matches a Scores column name, ignoring case.
 - **Weight** defaults to 1 for a criterion the frame leaves out.
 - **Norm** is optional: Raw, ÷Max or Rank. Blank follows the view's Normalize.
 
@@ -48,11 +61,11 @@ This is the same table Solenoid's Decision Matrix takes on its Weights input, so
 
 **Create Weights** in the toolbar writes a frame with every criterion at weight 1. After that the toolbar shows the frame's chip, which opens Solenoid's Frame editor. The weight fields and Norm menus in the table write to the same frame.
 
-Each view has two options in the Bases view settings: **Weights property**, to use another property name, and **Weights note**, to read the frame from a note other than the embedding one.
+Each view has three options in the Bases view settings: **Scores property** and **Weights property**, to use other property names, and **Weights note**, to read the Weights frame from a note other than the embedding one.
 
 ## Examples
 
-Settings → Decision Matrix → **Create Examples** adds a "Decision Matrix Examples" folder: four laptops, a base with both views, and a decision note with a Weights frame that embeds both.
+Settings → Decision Matrix → **Create Examples** adds a "Decision Matrix Examples" folder: four laptops with Scores frames, a base with both views, and a decision note with a Weights frame that embeds both.
 
 ## Development
 

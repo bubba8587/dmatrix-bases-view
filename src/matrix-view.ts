@@ -117,15 +117,10 @@ export class DecisionMatrixView extends DecisionView {
 		if (c.logical) {
 			const box = td.createEl('input', { type: 'checkbox', cls: sub ? 'dmv-check is-sub' : 'dmv-check' });
 			box.checked = cell === true;
-			box.disabled = !c.editable;
 			box.addEventListener('change', () => void this.writeCell(item, c, box.checked));
 			return;
 		}
 		const text = cell === null ? '' : String(cell);
-		if (!c.editable) {
-			td.createDiv({ text, cls: sub ? 'dmv-value is-sub' : 'dmv-value' });
-			return;
-		}
 		draftInput(td, sub ? 'dmv-input dmv-value-input is-sub' : 'dmv-input dmv-value-input', text, (next) => {
 			if (next === '') { void this.writeCell(item, c, null); return; }
 			const n = Number(next);

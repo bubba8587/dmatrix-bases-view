@@ -8,8 +8,9 @@ import { detectCriteria, groupsOf } from './data.ts';
 import { scoreMatrix } from './scoring.ts';
 import type { Detail, MatrixResult, Normalize } from './scoring.ts';
 import { assignFrameType, frameChip, releaseChips, solenoid } from './solenoid.ts';
-import { DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
+import { DEFAULT_SCORES_PROPERTY, DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
 import type { DecisionItem, ItemGroup, MatrixCriterion } from './types.ts';
+import { setScore } from './scores.ts';
 import { defaultFrame, isFrameYaml, resolveWeights, setNorm, setWeight } from './weights.ts';
 import type { ResolvedWeights, WeightsRecord } from './weights.ts';
 
@@ -39,6 +40,13 @@ export function viewOptions(): BasesAllOptions[] {
 			displayName: 'Output',
 			default: 'summary',
 			options: { summary: 'Summary', breakdown: 'Breakdown' },
+		},
+		{
+			type: 'text',
+			key: 'scoresProperty',
+			displayName: 'Scores property',
+			default: DEFAULT_SCORES_PROPERTY,
+			placeholder: DEFAULT_SCORES_PROPERTY,
 		},
 		{
 			type: 'text',
@@ -109,6 +117,11 @@ export abstract class DecisionView extends BasesView {
 		return typeof v === 'string' && v.trim() ? v.trim() : DEFAULT_WEIGHTS_PROPERTY;
 	}
 
+	protected get scoresProperty(): string {
+		const v = this.config.get('scoresProperty');
+		return typeof v === 'string' && v.trim() ? v.trim() : DEFAULT_SCORES_PROPERTY;
+	}
+
 	/** The picked Weights note, else the note this base is embedded in. */
 	protected weightsNote(): TFile | null {
 		const picked = this.config.get('weightsNote');
@@ -152,9 +165,12 @@ export abstract class DecisionView extends BasesView {
 		void this.editWeights(f => setNorm(f, c, mode));
 	}
 
+	/** Sets one cell of the option's Scores frame, making the frame when the note has none. */
 	protected async writeCell(item: DecisionItem, c: MatrixCriterion, value: number | boolean | null): Promise<void> {
+		const key = this.scoresProperty;
+		assignFrameType(this.app, key);
 		await this.app.fileManager.processFrontMatter(item.file, (fm: Record<string, unknown>) => {
-			fm[c.name] = value;
+			fm[key] = setScore(fm[key], c.name, value);
 		});
 	}
 
@@ -176,14 +192,14 @@ export abstract class DecisionView extends BasesView {
 		}
 
 		const entries = this.data.groupedData.flatMap((g: BasesEntryGroup) => g.entries);
-		const criteria = detectCriteria(this.app, this.config, entries, this.weightsProperty);
+		const criteria = detectCriteria(this.app, entries, this.scoresProperty);
 		const note = this.weightsNote();
 		const frame = this.weightsFrame(note);
 
 		this.renderToolbar(root.createDiv('dmv-toolbar'), note, frame, criteria);
 
 		if (criteria.length === 0) {
-			state(root, 'No criteria yet. Add a number or checkbox property to the notes and show it in this view.');
+			state(root, `No criteria yet. Give the notes a ${this.scoresProperty} Frame with a number or checkbox column per criterion.`);
 			return;
 		}
 		if (entries.length === 0) {
@@ -191,7 +207,7 @@ export abstract class DecisionView extends BasesView {
 			return;
 		}
 
-		const groups = groupsOf(this.data.groupedData, criteria);
+		const groups = groupsOf(this.app, this.data.groupedData, criteria, this.scoresProperty);
 		const items = groups.flatMap(g => g.items);
 		const resolved = resolveWeights(frame ?? null, criteria);
 		const result = scoreMatrix({

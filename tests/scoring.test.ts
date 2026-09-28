@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { scoreMatrix, parseNormalize } from '../src/scoring.ts';
 import type { Cell, Normalize } from '../src/scoring.ts';
+import { scoreColumns, scoreRow, cellsOf, setScore } from '../src/scores.ts';
 import { resolveWeights, setWeight, setNorm, defaultFrame, layoutOf } from '../src/weights.ts';
 
 // Options A, B, C; criteria quality and cost.
@@ -135,5 +136,34 @@ describe('Weights frame', () => {
 		const frame = setNorm(defaultFrame(criteria.slice(0, 1)), criteria[0], 'max');
 		assert.equal(frame[0].Norm, '÷Max');
 		assert.equal(setNorm(frame, criteria[0], null)[0].Norm, null);
+	});
+});
+
+describe('Scores frame', () => {
+	it('takes number and checkbox columns across notes, in first-appearance order', () => {
+		const rows = [
+			{ cost: 950, vendor: 'Acme', backlit: null },
+			null,
+			{ backlit: true, cost: 800, released: '2026-03-01', speed: 4 },
+		];
+		assert.deepEqual(scoreColumns(rows), [
+			{ name: 'cost', logical: false },
+			{ name: 'backlit', logical: true },
+			{ name: 'speed', logical: false },
+		]);
+	});
+
+	it('reads a note\'s first row, and nothing from a non-frame', () => {
+		assert.deepEqual(scoreRow([{ a: 1 }, { a: 2 }]), { a: 1 });
+		assert.equal(scoreRow(5), null);
+		assert.equal(scoreRow([]), null);
+		assert.deepEqual(cellsOf({ a: 'x', b: false }, [{ name: 'a', logical: false }, { name: 'b', logical: true }, { name: 'c', logical: false }]), [null, false, null]);
+	});
+
+	it('sets a cell, making a one-row frame when there is none', () => {
+		assert.deepEqual(setScore(undefined, 'cost', 900), [{ cost: 900 }]);
+		const before = [{ cost: 1, speed: 2 }];
+		assert.deepEqual(setScore(before, 'speed', null), [{ cost: 1, speed: null }]);
+		assert.equal(before[0].speed, 2);
 	});
 });

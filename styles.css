@@ -245,16 +245,10 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 .dmv-root input.dmv-value-input[type]:hover { background: var(--sol-sunken); border-color: var(--sol-border); }
 .dmv-root input.dmv-value-input[type]:focus { background: var(--sol-sunken); }
 
-.dmv-root input.dmv-input[type].is-sub,
-.dmv-value.is-sub {
+.dmv-root input.dmv-input[type].is-sub {
 	height: 18px;
 	font-size: 11px;
 	color: var(--sol-text-muted);
-}
-
-.dmv-value {
-	font-family: var(--font-monospace);
-	padding: 0 6px;
 }
 
 .dmv-root select.dmv-norm {

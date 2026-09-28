@@ -3,7 +3,7 @@ import type { App } from 'obsidian';
 import { DecisionMatrixView } from './matrix-view.ts';
 import { DecisionMatrixRankingsView } from './rankings-view.ts';
 import { assignFrameType, solenoid } from './solenoid.ts';
-import { DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
+import { DEFAULT_SCORES_PROPERTY, DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
 import { viewOptions } from './view.ts';
 
 export default class DecisionMatrixPlugin extends Plugin {
@@ -48,11 +48,11 @@ class DecisionMatrixSettingsTab extends PluginSettingTab {
 
 const FOLDER = 'Decision Matrix Examples';
 
-const LAPTOPS: { name: string; props: Record<string, number | boolean>; blurb: string }[] = [
-	{ name: 'Laptop A', props: { cost: 1200, performance: 7, portability: 6, build_quality: 9, battery: 7, backlit: true }, blurb: 'High-end workstation. Great build, decent battery.' },
-	{ name: 'Laptop B', props: { cost: 950, performance: 9, portability: 4, build_quality: 8, battery: 5, backlit: true }, blurb: 'Gaming powerhouse. Heavy but fast.' },
-	{ name: 'Laptop C', props: { cost: 800, performance: 5, portability: 9, build_quality: 7, battery: 9, backlit: false }, blurb: 'Ultra-portable with great battery.' },
-	{ name: 'Laptop D', props: { cost: 1600, performance: 8, portability: 7, build_quality: 9, battery: 8, backlit: true }, blurb: 'Premium all-rounder. Expensive but balanced.' },
+const LAPTOPS: { name: string; scores: Record<string, number | boolean>; blurb: string }[] = [
+	{ name: 'Laptop A', scores: { cost: 1200, performance: 7, portability: 6, build_quality: 9, battery: 7, backlit: true }, blurb: 'High-end workstation. Great build, decent battery.' },
+	{ name: 'Laptop B', scores: { cost: 950, performance: 9, portability: 4, build_quality: 8, battery: 5, backlit: true }, blurb: 'Gaming powerhouse. Heavy but fast.' },
+	{ name: 'Laptop C', scores: { cost: 800, performance: 5, portability: 9, build_quality: 7, battery: 9, backlit: false }, blurb: 'Ultra-portable with great battery.' },
+	{ name: 'Laptop D', scores: { cost: 1600, performance: 8, portability: 7, build_quality: 9, battery: 8, backlit: true }, blurb: 'Premium all-rounder. Expensive but balanced.' },
 ];
 
 async function createExamples(app: App): Promise<void> {
@@ -67,19 +67,14 @@ async function createExamples(app: App): Promise<void> {
 		'        - \'file.ext == "md"\'',
 		'        - \'file.name != "Laptop Decision"\'',
 	];
-	const criteria = Object.keys(LAPTOPS[0].props);
 	const base = [
 		'views:',
 		'  - type: decision-matrix',
 		'    name: Laptop Matrix',
 		...filters,
-		'    order:',
-		...criteria.map(c => `      - ${c}`),
 		'  - type: decision-matrix-rankings',
 		'    name: Laptop Rankings',
 		...filters,
-		'    order:',
-		...criteria.map(c => `      - ${c}`),
 		'    detail: breakdown',
 		'',
 	].join('\n');
@@ -103,7 +98,7 @@ async function createExamples(app: App): Promise<void> {
 		[
 			'# Laptop Decision',
 			'',
-			'The weights live in the `weights` Frame above. Cost weighs negative because a higher price is worse, and its Norm is Rank so the laptops compare by price order rather than dollars.',
+			'Each laptop keeps its scores in a `scores` Frame, and the weights live in the `weights` Frame above. Cost weighs negative because a higher price is worse, and its Norm is Rank so the laptops compare by price order rather than dollars.',
 			'',
 			'![[laptop-comparison.base#Laptop Matrix]]',
 			'',
@@ -114,13 +109,18 @@ async function createExamples(app: App): Promise<void> {
 	const files = [
 		...LAPTOPS.map(l => ({
 			path: `${FOLDER}/${l.name}.md`,
-			content: note([`title: ${l.name}`, ...Object.entries(l.props).map(([k, v]) => `${k}: ${v}`)], [l.blurb]),
+			content: note([
+				`title: ${l.name}`,
+				`${DEFAULT_SCORES_PROPERTY}:`,
+				...Object.entries(l.scores).map(([k, v], i) => `${i === 0 ? '  - ' : '    '}${k}: ${v}`),
+			], [l.blurb]),
 		})),
 		{ path: `${FOLDER}/laptop-comparison.base`, content: base },
 		{ path: `${FOLDER}/Laptop Decision.md`, content: decision },
 	];
 
 	assignFrameType(app, DEFAULT_WEIGHTS_PROPERTY);
+	assignFrameType(app, DEFAULT_SCORES_PROPERTY);
 	let created = 0;
 	for (const f of files) {
 		if (vault.getAbstractFileByPath(f.path)) continue;

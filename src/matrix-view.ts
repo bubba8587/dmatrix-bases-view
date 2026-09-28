@@ -48,9 +48,8 @@ export class DecisionMatrixView extends DecisionView {
 			}
 		}
 
-		const foot = tbody.createEl('tr', { cls: 'dmv-new-row' }).createEl('td', { cls: 'dmv-td', attr: { colspan: String(span) } }).createDiv('dmv-foot');
-		textButton(foot, 'New Option', () => this.newOption());
 		if (!m.canEditCriteria) return;
+		const foot = tbody.createEl('tr', { cls: 'dmv-new-row' }).createEl('td', { cls: 'dmv-td', attr: { colspan: String(span) } }).createDiv('dmv-foot');
 		if (this.naming === '') this.nameField(foot, '', 'New criterion', (name) => this.addCriterion(name));
 		else textButton(foot, 'Add Criterion', () => { this.naming = ''; this.render(); });
 	}
@@ -83,13 +82,7 @@ export class DecisionMatrixView extends DecisionView {
 				cell.createSpan({ text: 'never', cls: 'dmv-flip is-never', attr: { title: 'No weight here changes first place' } });
 				return;
 			}
-			const btn = cell.createEl('button', {
-				text: String(flip),
-				cls: 'dmv-flip',
-				attr: { title: 'Set this weight to where first place changes hands', 'aria-label': `Flip point of ${c.label}` },
-			});
-			btn.disabled = !m.canEditCriteria;
-			btn.addEventListener('click', () => this.setWeight(c, flip));
+			cell.createSpan({ text: String(flip), cls: 'dmv-flip', attr: { 'aria-label': `Flip point of ${c.label}` } });
 		});
 		weights.createEl('th', { cls: 'dmv-th' });
 	}

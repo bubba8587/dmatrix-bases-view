@@ -25,7 +25,6 @@ Both views have two controls, saved with the view:
 - In a Weight field, **↑** and **↓** step it by 1, and by 0.1 with **Shift**.
 - **Add Criterion** under the table names a new criterion and adds its row to the Weights frame. Its column is ready for values straight away, and it starts counting once a note has a value, which keeps the scores the same as Solenoid's.
 - A criterion's header menu has **Rename** (the Scores frame on every note and the Weights row), **Lower Is Better** (flips the weight's sign) and **Remove Criterion**.
-- **New Option** starts a note in the base with a Scores row holding every criterion.
 - Hover an option's name for a page preview, or right-click it for the file menu.
 - The Rank, Option and Score columns stay put while a wide matrix scrolls.
 - **⋯** in the toolbar has **Copy as Markdown**, which copies the ranking as a table (with the contributions under Breakdown), and **Reset Weights**.
@@ -34,7 +33,7 @@ Both views have two controls, saved with the view:
 
 Above each view a line names the leader, the runner-up and the margin between them, or says who is tied for first.
 
-Under each weight, **Flips at** is the weight at which a different option would take first place if every other weight stayed put. A flip point near the current weight means the decision hangs on that weight; **never** means no weight on that criterion changes the winner. Clicking a flip point sets the weight to it.
+Under each weight, **Flips at** is the weight at which a different option would take first place if every other weight stayed put. A flip point near the current weight means the decision hangs on that weight; **never** means no weight on that criterion changes the winner.
 
 ## Scoring
 

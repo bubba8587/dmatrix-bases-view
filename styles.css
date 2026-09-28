@@ -368,7 +368,6 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 .dmv-rank-row:last-child > * { border-bottom: none; }
 .dmv-rank-row > :first-child { padding-left: 10px; }
 .dmv-rank-row > :last-child { padding-right: 10px; text-align: right; }
-.dmv-rank-row.is-top > * { background: color-mix(in srgb, var(--sol-accent) 6%, transparent); }
 .dmv-rank-row.is-top > :first-child { box-shadow: inset 2px 0 0 var(--sol-emphasis); }
 
 .dmv-rank-name {
@@ -513,20 +512,12 @@ body .dmv-root button.dmv-head-btn:not(.clickable-icon):not(.mod-cta):not(.mod-w
 
 .dmv-root input.dmv-name-input[type] { width: 11ch; text-align: left; font-family: var(--font-interface); }
 
-body .dmv-root button.dmv-flip:not(.clickable-icon):not(.mod-cta):not(.mod-warning) {
-	height: 16px;
-	padding: 0 5px;
+.dmv-flip {
 	font-family: var(--font-monospace);
 	font-size: 10px;
-	color: var(--sol-ink-accent);
-	background: color-mix(in srgb, var(--sol-accent) 12%, transparent);
-	border: 1px solid transparent;
-	border-radius: 999px;
-	box-shadow: none;
-	cursor: pointer;
+	line-height: 16px;
+	color: var(--sol-text-dim);
 }
-body .dmv-root button.dmv-flip:not(.clickable-icon):not(.mod-cta):not(.mod-warning):hover { border-color: var(--sol-edge); }
-body .dmv-root button.dmv-flip:not(.clickable-icon):not(.mod-cta):not(.mod-warning):disabled { cursor: default; }
 .dmv-flip.is-never {
 	font-family: var(--font-interface);
 	font-size: 10px;
@@ -572,7 +563,7 @@ body .dmv-root button.dmv-text-btn:not(.clickable-icon):not(.mod-cta):not(.mod-w
 	text-wrap-style: balance;
 }
 .dmv-root .dmv-lead .dmv-lead-name { color: var(--sol-text-bright); font-weight: 600; }
-.dmv-lead-margin { font-family: var(--font-monospace); color: var(--sol-ink-accent); }
+.dmv-lead-margin { font-family: var(--font-monospace); color: var(--sol-text); }
 
 .dmv-state-action { margin-top: 8px; }
 

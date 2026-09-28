@@ -239,14 +239,6 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		}).open();
 	}
 
-	/** Starts a note in the base with an empty Scores row, one column per criterion. */
-	protected newOption(): void {
-		const key = this.scoresProperty;
-		const columns = Object.fromEntries((this.model?.criteria ?? []).map(c => [c.name, null]));
-		assignFrameType(this.app, key);
-		void this.createFileForView(undefined, (fm: Record<string, unknown>) => { fm[key] = [columns]; });
-	}
-
 	// ── Option links ──────────────────────────────────────────
 
 	protected optionLink(parent: HTMLElement, item: DecisionItem, cls = 'dmv-link'): HTMLElement {
@@ -299,7 +291,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		}
 		if (criteria.length === 0) {
 			const empty = root.createDiv('dmv-state');
-			empty.createDiv({ text: `No criteria yet. Add one here, or give the notes a ${this.scoresProperty} Frame with a number column per criterion.` });
+			empty.createDiv({ text: `No criteria yet. Give the notes a ${this.scoresProperty} Frame with a number column per criterion.` });
 			if (canEditCriteria) {
 				draftInput(empty.createDiv('dmv-state-action'), 'dmv-input dmv-name-input', '', (name) => this.addCriterion(name), {
 					inputmode: 'text', placeholder: 'Criterion name', 'aria-label': 'New criterion', 'data-dmv-key': 'new-criterion',

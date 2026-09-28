@@ -26,3 +26,4 @@ export interface ItemGroup {
 
 export const DEFAULT_WEIGHTS_PROPERTY = 'weights';
 export const DEFAULT_SCORES_PROPERTY = 'scores';
+export const DEFAULT_RESULT_PROPERTY = 'result';

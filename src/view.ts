@@ -11,7 +11,8 @@ import type { ColumnType, PluginColumnTypes } from './frame.ts';
 import { fillBlanks, flipWeights, formatScore, leadOf, scoreMatrix } from './scoring.ts';
 import type { Detail, MatrixResult, Normalize } from './scoring.ts';
 import { assignFrameType, solenoid } from './solenoid.ts';
-import { DEFAULT_SCORES_PROPERTY, DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
+import { DEFAULT_RESULT_PROPERTY, DEFAULT_SCORES_PROPERTY, DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
+import { resultFrame } from './result.ts';
 import type { DecisionItem, ItemGroup, MatrixCriterion } from './types.ts';
 import { dropScore, renameScore, setScore } from './scores.ts';
 import { hasWork, planConversion } from './convert.ts';
@@ -63,6 +64,13 @@ export function viewOptions(): BasesAllOptions[] {
 			displayName: 'Weights property',
 			default: DEFAULT_WEIGHTS_PROPERTY,
 			placeholder: DEFAULT_WEIGHTS_PROPERTY,
+		},
+		{
+			type: 'text',
+			key: 'resultProperty',
+			displayName: 'Result property',
+			default: DEFAULT_RESULT_PROPERTY,
+			placeholder: DEFAULT_RESULT_PROPERTY,
 		},
 		{
 			type: 'file',
@@ -151,6 +159,11 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 	protected get weightsProperty(): string {
 		const v = this.config.get('weightsProperty');
 		return typeof v === 'string' && v.trim() ? v.trim() : DEFAULT_WEIGHTS_PROPERTY;
+	}
+
+	protected get resultProperty(): string {
+		const v = this.config.get('resultProperty');
+		return typeof v === 'string' && v.trim() ? v.trim() : DEFAULT_RESULT_PROPERTY;
 	}
 
 	protected get scoresProperty(): string {
@@ -548,6 +561,9 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		more.addEventListener('click', (e) => {
 			const menu = new Menu();
 			menu.addItem(i => i.setTitle('Copy as Markdown').setIcon('copy').setDisabled(!this.model).onClick(() => void this.copyMarkdown()));
+			menu.addItem(i => i.setTitle('Write result to properties').setIcon('file-output')
+				.setDisabled(!this.model || !this.weightsNote())
+				.onClick(() => void this.writeResult()));
 			const plan = this.conversionPlan();
 			if (hasWork(plan)) {
 				menu.addItem(i => i.setTitle('Convert from Decision Matrix 0.7').setIcon('refresh-cw').onClick(() => this.confirmConversion(plan)));
@@ -561,6 +577,29 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 			}
 			showMenu(menu, more, e);
 		});
+	}
+
+	/**
+	 * Writes the ranking to the decision note as a Frame, the table Solenoid's Decision Matrix outputs,
+	 * and records its column types. Only criteria that score are in it, as only they are in Solenoid's.
+	 */
+	private async writeResult(): Promise<void> {
+		const m = this.model;
+		const note = this.weightsNote();
+		if (!m || !note) return;
+		const scored = m.criteria.map((c, j) => (c.pending ? -1 : j)).filter(j => j >= 0);
+		const result = { ...m.result, contributions: scored.map(j => m.result.contributions[j]) };
+		const frame = resultFrame(m.items.map(it => it.title), scored.map(j => m.criteria[j].label), result, m.detail);
+		const key = this.resultProperty;
+		if (key === this.weightsProperty || key === this.scoresProperty) {
+			new Notice(`The result property can't be ${key}: that is where the ${key === this.weightsProperty ? 'weights' : 'scores'} are.`);
+			return;
+		}
+		assignFrameType(this.app, key);
+		await this.app.fileManager.processFrontMatter(note, (fm: Record<string, unknown>) => { fm[key] = frame.rows; });
+		// The columns are this view's own, so the property's whole map is replaced.
+		await solenoid(this.app)?.setColumnTypes(key, frame.types, true);
+		new Notice(`Wrote the result to ${key} on ${note.basename}`);
 	}
 
 	/** The ranking best first as a Markdown table, with the contributions under Breakdown. */

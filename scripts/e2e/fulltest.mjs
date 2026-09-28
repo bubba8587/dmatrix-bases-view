@@ -111,6 +111,20 @@ await ev(() => { window.__copied = null; navigator.clipboard.writeText = async (
 await ev((M) => document.querySelector(`${M} .dmv-toolbar > .dmv-icon-btn`).click(), M); await w(300); await menuPick("Copy as Markdown");
 const md = await ev(() => window.__copied);
 check("Copy as Markdown copies a ranking table", /^\| Rank \| Option \| Score \|/.test(md ?? "") && (md ?? "").split("\n").length === 6);
+// Write result to properties
+await ev((M) => document.querySelector(`${M} .dmv-toolbar > .dmv-icon-btn`).click(), M); await w(300); await menuPick("Write result to properties"); await w(1500);
+const shown = (await rows()).slice().sort((a, b) => Number(a.rank.replace("=", "")) - Number(b.rank.replace("=", "")));
+const written = (await fm("Laptop Decision")).result ?? [];
+check("Write result writes Option · Score · Rank best first", written.length === 4 && JSON.stringify(Object.keys(written[0])) === JSON.stringify(["Option", "Score", "Rank"]) && written.every((r, k) => r.Option === shown[k].name && r.Score === shown[k].score), JSON.stringify(written[0]));
+const resultTypes = await ev(async () => { const p = app.plugins.getPlugin("solenoid-properties"); return p.api ? p.api.columnTypes("result") : (await p.loadData()).columnTypes.result; });
+check("The result's column types are recorded", JSON.stringify(resultTypes) === JSON.stringify({ Option: "string", Score: "number", Rank: "number" }), JSON.stringify(resultTypes));
+check("The result shows as a Frame property", await ev(() => app.metadataTypeManager.getAssignedWidget("result") === "solenoid-frame"));
+await ev((M) => [...document.querySelectorAll(`${M} .dmv-seg-btn`)].find((x) => x.textContent === "Breakdown").click(), M); await w(1000);
+await ev((M) => document.querySelector(`${M} .dmv-toolbar > .dmv-icon-btn`).click(), M); await w(300); await menuPick("Write result to properties"); await w(1500);
+const withBreakdown = (await fm("Laptop Decision")).result ?? [];
+check("Under Breakdown the result carries each contribution", Object.keys(withBreakdown[0] ?? {}).length === 9 && Math.abs(Object.values(withBreakdown[0]).slice(1, 7).reduce((s, v) => s + v, 0) - withBreakdown[0].Score) < 0.0006);
+await ev((M) => [...document.querySelectorAll(`${M} .dmv-seg-btn`)].find((x) => x.textContent === "Summary").click(), M); await w(900);
+
 await ev((M) => document.querySelector(`${M} .dmv-toolbar > .dmv-icon-btn`).click(), M); await w(300); await menuPick("Reset weights");
 await ev(() => [...document.querySelectorAll(".modal button")].find((x) => x.textContent === "Reset").click()); await w(2000);
 check("Reset weights sets every weight to 1", Object.values(await weights()).every(([wt, n]) => wt === 1 && n === null));

@@ -83,7 +83,23 @@ Both views have two controls, saved with the view:
 - Click a criterion's name for **Rename**, **Lower is better** and **Remove criterion**. Rename and Remove change every note's scores Frame and the weights row.
 - Click an option to open its note, **Ctrl**-hover for a preview, or right-click for the file menu.
 - The chip beside **Weights** opens the weights Frame in Solenoid Properties' editor. If there is no weights Frame yet, **Create weights** adds one with every criterion at 1.
-- The **⋯** menu has **Copy as Markdown**, which copies the ranking as a table (with the contributions under Breakdown), and **Reset weights**.
+- The **⋯** menu has **Copy as Markdown**, which copies the ranking as a table (with the contributions under Breakdown), **Write result to properties** and **Reset weights**.
+
+## Writing the result to properties
+
+**Write result to properties** in the **⋯** menu saves the ranking as a `result` Frame on the decision note, so other notes, queries and Solenoid can read it. It is the table Solenoid's Decision Matrix node outputs, best first:
+
+```yaml
+result:
+  - Option: Laptop B
+    Score: 0.6173
+    Rank: 1
+  - Option: Laptop C
+    Score: 0.6049
+    Rank: 2
+```
+
+Under Breakdown, each criterion's signed contribution gets a column between Option and Score. The Frame is a snapshot: it is rewritten each time you choose the command, not kept in step as scores change. Its column types are recorded (Option text, the rest numbers), and a criterion named like another column gets a number on the end (`Score2`), as in Solenoid.
 
 ## How scores are worked out
 
@@ -103,6 +119,7 @@ Under each weight, **Flips at** is the weight at which a different option would 
 Each view has these options in the Bases view settings, alongside Normalize and Output:
 
 - **Scores property** and **Weights property** use property names other than `scores` and `weights`.
+- **Result property** names the property **Write result to properties** writes, `result` by default.
 - **Weights note** reads the weights from a chosen note instead of the one the base is embedded in.
 
 ## Upgrading from 0.7
@@ -123,7 +140,7 @@ The view works on mobile. A narrow table keeps Rank, Option and Score in place a
 - `npm test` runs the scoring, Frame and conversion tests.
 - `npm run lint` runs Obsidian's plugin-review rules (`eslint-plugin-obsidianmd`).
 - `SOLENOID=../solenoid npm run parity` checks the scoring against Solenoid's own engine. It bundles Solenoid's Decision Matrix and Frame typing from a Solenoid checkout and compares criteria, scores, ranks and contributions on thousands of random decisions with stray values, column types, odd weights and Norm spellings. Blanks are filled with medians on Solenoid's side first, so it checks everything except that one rule. It exits non-zero on any disagreement.
-- `SP=<a Solenoid Properties build folder> npm run e2e` runs the plugin in a private Obsidian (Linux with Xvfb; `OBSIDIAN` points at the binary). It makes 38 feature checks, from rendering and editing to criterion edits, view options, two views at once and Solenoid Properties switched off, then converts 0.7's own example. It exits non-zero on any failure or console error. Run it against a Solenoid Properties build with its plugin API and against 0.1.5, which has none, since the view supports both.
+- `SP=<a Solenoid Properties build folder> npm run e2e` runs the plugin in a private Obsidian (Linux with Xvfb; `OBSIDIAN` points at the binary). It makes 42 feature checks, from rendering and editing to criterion edits, view options, writing the result, two views at once and Solenoid Properties switched off, then converts 0.7's own example. It exits non-zero on any failure or console error. Run it against a Solenoid Properties build with its plugin API and against 0.1.5, which has none, since the view supports both.
 
 The view uses Solenoid Properties' plugin API (version 1) to show its Frame chip and editor and to read and record column types. It falls back to the methods older releases have.
 

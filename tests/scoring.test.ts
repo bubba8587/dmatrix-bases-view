@@ -6,6 +6,7 @@ import type { Cell, Normalize } from '../src/scoring.ts';
 import { scoreColumns, scoreRow, scoreTable, setScore, withListed, renameScore, dropScore } from '../src/scores.ts';
 import { toFrame, parsePluginColumnTypes, noteColumnType } from '../src/frame.ts';
 import { legacyCriteria, planConversion, hasWork } from '../src/convert.ts';
+import { resultFrame, uniqueNames } from '../src/result.ts';
 import { resolveWeights, setWeight, setNorm, defaultFrame, layoutOf, addCriterion, renameCriterion, removeCriterion, listedCriteria } from '../src/weights.ts';
 
 // Options A, B, C; criteria quality and cost.
@@ -371,5 +372,35 @@ describe('conversion from 0.7', () => {
 	it('has nothing to do for a decision already in frames', () => {
 		const plan = planConversion({ ...base, notes: [{ title: 'A', scores: [{ cost: 1 }] }], decision: { weights: [] } });
 		assert.equal(hasWork(plan), false);
+	});
+});
+
+describe('result frame', () => {
+	it('is Option · Score · Rank best first, like Solenoid\'s output', () => {
+		const r = run([], 'none');
+		const f = resultFrame(['A', 'B', 'C'], ['quality', 'cost'], r, 'summary');
+		assert.deepEqual(f.rows, [
+			{ Option: 'C', Score: 9.5, Rank: 1 },
+			{ Option: 'A', Score: 5.5, Rank: 2 },
+			{ Option: 'B', Score: 3.5, Rank: 3 },
+		]);
+		assert.deepEqual(f.types, { Option: 'string', Score: 'number', Rank: 'number' });
+	});
+
+	it('adds signed contributions under Breakdown, and renames a colliding criterion', () => {
+		const r = run([1, -1], 'none');
+		const f = resultFrame(['A', 'B', 'C'], ['Score', 'cost'], r, 'breakdown');
+		assert.deepEqual(Object.keys(f.rows[0]), ['Option', 'Score', 'cost', 'Score2', 'Rank']);
+		assert.deepEqual(f.rows.map(x => x.Option), ['A', 'B', 'C']);
+		assert.deepEqual(f.rows[2], { Option: 'C', Score: 5, cost: -4.5, Score2: 0.5, Rank: 3 });
+	});
+
+	it('keeps tied options in their order and gives them one rank', () => {
+		const f = resultFrame(['A', 'B', 'C'], ['quality', 'cost'], run([1, -1], 'none'), 'summary');
+		assert.deepEqual(f.rows.map(x => [x.Option, x.Rank]), [['A', 1], ['B', 1], ['C', 3]]);
+	});
+
+	it('makes names unique as Solenoid\'s makeHeaders does', () => {
+		assert.deepEqual(uniqueNames(['Rank', 'Rank', ' Rank ', 'rank', '', 'Rank2']), ['Rank', 'Rank2', 'Rank3', 'rank', 'Col5', 'Rank22']);
 	});
 });

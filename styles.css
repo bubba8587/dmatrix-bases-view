@@ -69,6 +69,14 @@
 
 .dmv-weights {
 	margin-left: auto;
+	min-width: 0;
+}
+/* The decision note's name beside the chip: one line, cut short rather than broken mid-word. */
+.dmv-weights > .dmv-muted:last-child {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .dmv-chip {
@@ -129,6 +137,9 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 
 .dmv-table-wrap {
 	overflow-x: auto;
+	/* A cell scrolled to (by focus, Enter or a click) lands clear of the pinned columns. */
+	scroll-padding-inline-start: calc(var(--dmv-rank-w) + 16em);
+	scroll-padding-inline-end: 7em;
 	border: 1px solid var(--dmv-hairline);
 	border-radius: 8px;
 }
@@ -627,6 +638,21 @@ body .dmv-root button.dmv-text-btn:not(.clickable-icon):not(.mod-cta):not(.mod-w
 	.dmv-root .dmv-table .dmv-td { padding-left: 6px; padding-right: 6px; }
 	.dmv-root .dmv-table .dmv-td-score { min-width: 64px; }
 	.dmv-root .dmv-table .dmv-th-criterion { max-width: 8em; }
+	.dmv-table-wrap { scroll-padding-inline-start: calc(var(--dmv-rank-w) + 9em); scroll-padding-inline-end: 5em; }
+}
+
+/* Too narrow for pinned columns to leave any room: the whole table scrolls instead. */
+@container (max-width: 360px) {
+	.dmv-root .dmv-table .dmv-th-rank,
+	.dmv-root .dmv-table .dmv-td-rank,
+	.dmv-root .dmv-table .dmv-th-option,
+	.dmv-root .dmv-table .dmv-td-option,
+	.dmv-root .dmv-table .dmv-th-score,
+	.dmv-root .dmv-table .dmv-weights-row .dmv-th:first-child,
+	.dmv-root .dmv-table .dmv-weights-row .dmv-th:last-child,
+	.dmv-root .dmv-table .dmv-td-score { position: static; box-shadow: none; }
+	.dmv-table-wrap { scroll-padding-inline: 0; }
+	.dmv-foot { position: static; }
 }
 
 /* ── Phone ───────────────────────────────────────────────── */

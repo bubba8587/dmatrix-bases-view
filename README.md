@@ -92,6 +92,8 @@ Settings → Decision Matrix → **Create examples** adds a "Decision Matrix Exa
 
 `npm run build` builds `main.js`; `npm test` runs the scoring tests, which mirror Solenoid's own Decision Matrix tests; `npm run lint` runs Obsidian's plugin-review rules (`eslint-plugin-obsidianmd`).
 
+`SP=<a Solenoid Properties build folder> npm run e2e` runs the whole plugin in a private Obsidian (on Xvfb, Linux; `OBSIDIAN` points at the binary, `/opt/Obsidian/obsidian` by default): 38 feature checks from rendering and editing to criterion edits, the view options, two views at once and Solenoid Properties switched off, then converting 0.7's own example. It exits non-zero on any failure or console error. Run it once against a Solenoid Properties build with the `api` and once against 0.1.5, which has none.
+
 `SOLENOID=../solenoid npm run parity` checks the scoring against Solenoid's own engine: it bundles Solenoid's `decisionMatrix` and its note-Frame typing from a Solenoid checkout and compares criteria, scores, ranks and contributions on thousands of random decisions with stray values, column types, junk weights and Norm spellings. Blanks are filled with their medians on Solenoid's side first, so it checks everything but that one rule. It exits non-zero on any disagreement.
 
 ## License

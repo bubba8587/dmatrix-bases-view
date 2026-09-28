@@ -87,6 +87,8 @@ Settings → Decision Matrix → **Create Examples** adds a "Decision Matrix Exa
 
 `npm run build` builds `main.js`; `npm test` runs the scoring tests, which mirror Solenoid's own Decision Matrix tests.
 
+`SOLENOID=../solenoid npm run parity` checks the scoring against Solenoid's own engine: it bundles Solenoid's `decisionMatrix` and its note-Frame typing from a Solenoid checkout and compares criteria, scores, ranks and contributions on thousands of random decisions with stray values, column types, junk weights and Norm spellings. It exits non-zero on any disagreement.
+
 ## License
 
 MIT

@@ -15,8 +15,8 @@ const series = (j: number) => `dmv-series-${j % SERIES}${Math.floor(j / SERIES) 
 export class DecisionMatrixRankingsView extends DecisionView {
 	type = 'decision-matrix-rankings';
 
-	constructor(controller: QueryController, containerEl: HTMLElement) {
-		super(controller, containerEl, 'dmv-rankings');
+	constructor(controller: QueryController, containerEl: HTMLElement, legacyPrefix: () => string) {
+		super(controller, containerEl, 'dmv-rankings', legacyPrefix);
 	}
 
 	protected renderBody(body: HTMLElement, m: Model): void {

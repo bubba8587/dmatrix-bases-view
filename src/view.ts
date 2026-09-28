@@ -14,6 +14,8 @@ import { assignFrameType, solenoid } from './solenoid.ts';
 import { DEFAULT_SCORES_PROPERTY, DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
 import type { DecisionItem, ItemGroup, MatrixCriterion } from './types.ts';
 import { dropScore, renameScore, setScore } from './scores.ts';
+import { hasWork, planConversion } from './convert.ts';
+import type { ConvertPlan } from './convert.ts';
 import {
 	addCriterion, defaultFrame, isFrameYaml, layoutOf, removeCriterion, renameCriterion, resolveWeights, setNorm, setWeight,
 } from './weights.ts';
@@ -104,7 +106,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 	/** A criterion just added: the first render that has its column scrolls to it. */
 	protected reveal: string | null = null;
 
-	constructor(controller: QueryController, containerEl: HTMLElement, cls: string) {
+	constructor(controller: QueryController, containerEl: HTMLElement, cls: string, private legacyPrefix: () => string) {
 		super(controller);
 		this.rootEl = containerEl.createDiv(`dmv-root ${cls}`);
 	}
@@ -293,6 +295,62 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		}).open();
 	}
 
+	// ── Converting a 0.7 decision ─────────────────────────────
+
+	private conversionPlan(): ConvertPlan {
+		const fmOf = (file: TFile | null) => (file ? { ...(this.app.metadataCache.getFileCache(file)?.frontmatter ?? {}) } : null);
+		return planConversion({
+			notes: this.entries().map(e => fmOf(e.file) ?? {}),
+			decision: fmOf(this.weightsNote()),
+			order: this.config.getOrder().filter(id => id.startsWith('note.')).map(id => id.slice('note.'.length)),
+			prefix: this.legacyPrefix(),
+			scoresKey: this.scoresProperty,
+			weightsKey: this.weightsProperty,
+		});
+	}
+
+	private confirmConversion(plan: ConvertPlan): void {
+		const notes = plan.notes.filter(n => n !== null).length;
+		const names = [...plan.columns.keys()];
+		const shown = names.length > 6 ? `${names.slice(0, 6).join(', ')} and ${names.length - 6} more` : names.join(', ');
+		const parts = [];
+		if (notes > 0) parts.push(`${shown} move${names.length === 1 ? 's' : ''} into the scores frame on ${notes === 1 ? '1 note' : `${notes} notes`}.`);
+		if (plan.weights) parts.push(`The weight_ properties move into the weights frame on ${this.weightsNote()?.basename ?? 'the decision note'}.`);
+		parts.push('The old properties are removed.');
+		new ConfirmModal(this.app, 'Convert to frames?', parts.join(' '), 'Convert', () => this.convert(plan), 'mod-cta').open();
+	}
+
+	private async convert(plan: ConvertPlan): Promise<void> {
+		const scoresKey = this.scoresProperty;
+		const weightsKey = this.weightsProperty;
+		const entries = this.entries();
+		assignFrameType(this.app, scoresKey);
+		for (let i = 0; i < entries.length; i++) {
+			const step = plan.notes[i];
+			if (!step) continue;
+			await this.app.fileManager.processFrontMatter(entries[i].file, (fm: Record<string, unknown>) => {
+				fm[scoresKey] = step.scores;
+				for (const key of step.remove) delete fm[key];
+			});
+		}
+		const note = this.weightsNote();
+		if (plan.weights && note) {
+			const step = plan.weights;
+			assignFrameType(this.app, weightsKey);
+			await this.app.fileManager.processFrontMatter(note, (fm: Record<string, unknown>) => {
+				fm[weightsKey] = step.frame;
+				for (const key of step.remove) delete fm[key];
+			});
+			await this.typeColumns(weightsKey, [['Criterion', 'string'], ['Weight', 'number'], ['Norm', 'string']]);
+		}
+		// Converting says these columns hold numbers, so their type is set even where one was recorded.
+		const types = Object.fromEntries([...plan.columns.values()].map((c): [string, ColumnType] => [c, 'number']));
+		await solenoid(this.app)?.setColumnTypes(scoresKey, types);
+		await this.refreshPicks();
+		new Notice(`Converted ${plan.moved === 1 ? '1 value' : `${plan.moved} values`} to frames`);
+		this.render();
+	}
+
 	// ── Option links ──────────────────────────────────────────
 
 	protected optionLink(parent: HTMLElement, item: DecisionItem, cls = 'dmv-link'): HTMLElement {
@@ -344,6 +402,16 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		if (entries.length === 0) {
 			state(root, 'No options. The base\'s filters match no notes.');
 			return;
+		}
+		if (!criteria.some(c => !c.pending)) {
+			const plan = this.conversionPlan();
+			if (hasWork(plan)) {
+				const box = root.createDiv('dmv-state');
+				box.createDiv({ text: 'These notes keep each score in its own property, the way Decision Matrix 0.7 did. The view reads them from a scores frame on each note.' });
+				const btn = box.createDiv('dmv-state-action').createEl('button', { text: 'Convert to frames', cls: 'dmv-btn' });
+				btn.addEventListener('click', () => this.confirmConversion(plan));
+				return;
+			}
 		}
 		if (criteria.length === 0) {
 			const empty = root.createDiv('dmv-state');
@@ -480,6 +548,10 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		more.addEventListener('click', (e) => {
 			const menu = new Menu();
 			menu.addItem(i => i.setTitle('Copy as Markdown').setIcon('copy').setDisabled(!this.model).onClick(() => void this.copyMarkdown()));
+			const plan = this.conversionPlan();
+			if (hasWork(plan)) {
+				menu.addItem(i => i.setTitle('Convert from Decision Matrix 0.7').setIcon('refresh-cw').onClick(() => this.confirmConversion(plan)));
+			}
 			if (this.model?.canEditCriteria) {
 				menu.addItem(i => i.setTitle('Reset weights').setIcon('rotate-ccw').onClick(() => {
 					new ConfirmModal(this.app, 'Reset every weight to 1?', 'Norm overrides are cleared too.', 'Reset', async () => {
@@ -541,7 +613,14 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 }
 
 class ConfirmModal extends Modal {
-	constructor(app: App, private heading: string, private message: string, private action: string, private onConfirm: () => Promise<void>) {
+	constructor(
+		app: App,
+		private heading: string,
+		private message: string,
+		private action: string,
+		private onConfirm: () => Promise<void>,
+		private actionCls = 'mod-warning',
+	) {
 		super(app);
 	}
 
@@ -550,7 +629,7 @@ class ConfirmModal extends Modal {
 		this.contentEl.createEl('p', { text: this.message });
 		const buttons = this.contentEl.createDiv('modal-button-container');
 		buttons.createEl('button', { text: 'Cancel' }).addEventListener('click', () => this.close());
-		buttons.createEl('button', { text: this.action, cls: 'mod-warning' }).addEventListener('click', () => {
+		buttons.createEl('button', { text: this.action, cls: this.actionCls }).addEventListener('click', () => {
 			this.close();
 			void this.onConfirm();
 		});

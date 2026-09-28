@@ -7,17 +7,25 @@ import { DEFAULT_SCORES_PROPERTY, DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
 import { HOVER_SOURCE, viewOptions } from './view.ts';
 
 export default class DecisionMatrixPlugin extends Plugin {
+	/** 0.7's score prefix setting, still in this plugin's data.json, for converting a 0.7 decision. */
+	private legacyPrefix = '';
+
 	async onload(): Promise<void> {
+		const data: unknown = await this.loadData();
+		const prefix = typeof data === 'object' && data !== null ? (data as { scorePrefix?: unknown }).scorePrefix : undefined;
+		if (typeof prefix === 'string') this.legacyPrefix = prefix;
+		const legacy = () => this.legacyPrefix;
+
 		this.registerBasesView('decision-matrix', {
 			name: 'Decision Matrix',
 			icon: 'scale',
-			factory: (controller, containerEl) => new DecisionMatrixView(controller, containerEl),
+			factory: (controller, containerEl) => new DecisionMatrixView(controller, containerEl, legacy),
 			options: () => viewOptions(),
 		});
 		this.registerBasesView('decision-matrix-rankings', {
 			name: 'Decision Matrix Rankings',
 			icon: 'award',
-			factory: (controller, containerEl) => new DecisionMatrixRankingsView(controller, containerEl),
+			factory: (controller, containerEl) => new DecisionMatrixRankingsView(controller, containerEl, legacy),
 			options: () => viewOptions(),
 		});
 		this.registerHoverLinkSource(HOVER_SOURCE, { display: 'Decision Matrix', defaultMod: true });

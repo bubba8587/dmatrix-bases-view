@@ -80,6 +80,10 @@ This is the same table Solenoid's Decision Matrix takes on its Weights input, so
 
 Each view has three options in the Bases view settings: **Scores property** and **Weights property**, to use other property names, and **Weights note**, to read the Weights frame from a note other than the embedding one.
 
+## Coming from 0.7
+
+Decision Matrix 0.7 kept each score in its own note property and each weight in a `weight_<property>` property on the decision note. A view over such notes offers **Convert to frames**, also in the toolbar's **⋯** menu. It finds the criteria the way 0.7 did (the numeric properties in the view's column order, or every numeric property when the view lists none), moves each note's values into its `scores` frame and the `weight_` properties into the `weights` frame, records their column types, and removes the old properties, after a confirmation that names what moves. A value already in a frame is kept. If 0.7's score prefix was set, it comes off the column names, as 0.7 showed them.
+
 ## Examples
 
 Settings → Decision Matrix → **Create examples** adds a "Decision Matrix Examples" folder: four laptops with Scores frames, a base with both views, and a decision note with a Weights frame that embeds both.

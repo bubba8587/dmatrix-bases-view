@@ -26,8 +26,8 @@ export class DecisionMatrixView extends DecisionView {
 	/** The row order last drawn, held while a value cell has focus, so a save never moves the row being typed in. */
 	private heldOrder: string[] | null = null;
 
-	constructor(controller: QueryController, containerEl: HTMLElement) {
-		super(controller, containerEl, 'dmv-matrix');
+	constructor(controller: QueryController, containerEl: HTMLElement, legacyPrefix: () => string) {
+		super(controller, containerEl, 'dmv-matrix', legacyPrefix);
 		// Leaving the table lets the rows take their new ranks.
 		this.rootEl.addEventListener('focusout', () => window.setTimeout(() => {
 			if (this.heldOrder && !this.rootEl.contains(this.rootEl.ownerDocument.activeElement)) {

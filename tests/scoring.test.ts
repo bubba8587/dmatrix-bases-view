@@ -5,6 +5,7 @@ import { scoreMatrix, parseNormalize, flipWeights, leadOf, fillBlanks } from '..
 import type { Cell, Normalize } from '../src/scoring.ts';
 import { scoreColumns, scoreRow, scoreTable, setScore, withListed, renameScore, dropScore } from '../src/scores.ts';
 import { toFrame, parsePluginColumnTypes, noteColumnType } from '../src/frame.ts';
+import { legacyCriteria, planConversion, hasWork } from '../src/convert.ts';
 import { resolveWeights, setWeight, setNorm, defaultFrame, layoutOf, addCriterion, renameCriterion, removeCriterion, listedCriteria } from '../src/weights.ts';
 
 // Options A, B, C; criteria quality and cost.
@@ -313,5 +314,62 @@ describe('fillBlanks', () => {
 
 	it('a column nobody has scored fills nothing', () => {
 		assert.deepEqual(fillBlanks([[null, null]], [false]), { columns: [[null, null]], medians: [null], filled: [[false, false]] });
+	});
+});
+
+describe('conversion from 0.7', () => {
+	const base = { scoresKey: 'scores', weightsKey: 'weights', prefix: '', order: [] as string[] };
+	const laptops = [
+		{ title: 'A', cost: 1200, performance: 7, tags: ['x'], year: '2024', note: 'fast' },
+		{ title: 'B', cost: '950', performance: 9, backlit: true },
+		{ title: 'C', performance: 5 },
+	];
+
+	it('finds 0.7 criteria: numeric properties, numeric text too, never title, tags or weight_', () => {
+		assert.deepEqual(legacyCriteria({ ...base, notes: laptops, decision: null }), ['cost', 'performance', 'year']);
+		assert.deepEqual(legacyCriteria({ ...base, order: ['title', 'performance', 'note', 'cost'], notes: laptops, decision: null }), ['performance', 'cost']);
+	});
+
+	it('moves each note\'s values into its Scores frame and the weights into the Weights frame', () => {
+		const plan = planConversion({
+			...base, order: ['cost', 'performance'], notes: laptops,
+			decision: { title: 'D', weight_cost: -3, weight_performance: '5', weight_ghost: 2 },
+		});
+		assert.deepEqual(plan.notes[0], { scores: [{ cost: 1200, performance: 7 }], remove: ['cost', 'performance'] });
+		assert.deepEqual(plan.notes[1], { scores: [{ cost: 950, performance: 9 }], remove: ['cost', 'performance'] });
+		assert.deepEqual(plan.notes[2], { scores: [{ performance: 5 }], remove: ['performance'] });
+		assert.deepEqual(plan.weights, {
+			frame: [
+				{ Criterion: 'cost', Weight: -3, Norm: null },
+				{ Criterion: 'performance', Weight: 5, Norm: null },
+				{ Criterion: 'ghost', Weight: 2, Norm: null },
+			],
+			remove: ['weight_cost', 'weight_performance', 'weight_ghost'],
+		});
+		assert.equal(plan.moved, 8);
+		assert.ok(hasWork(plan));
+	});
+
+	it('strips 0.7\'s score prefix from column and criterion names', () => {
+		const plan = planConversion({
+			...base, prefix: 'score_', notes: [{ score_cost: 3, score_: 1 }],
+			decision: { weight_score_cost: 2 },
+		});
+		assert.deepEqual([...plan.columns], [['score_cost', 'cost'], ['score_', 'score_']]);
+		assert.deepEqual(plan.weights?.frame, [{ Criterion: 'cost', Weight: 2, Norm: null }]);
+	});
+
+	it('keeps what is already in a frame', () => {
+		const plan = planConversion({
+			...base, notes: [{ cost: 5, scores: [{ cost: 9, speed: 2 }] }],
+			decision: { weights: [{ Weight: 4, Criterion: 'Cost' }], weight_cost: 1, weight_speed: 3 },
+		});
+		assert.deepEqual(plan.notes[0]?.scores, [{ cost: 9, speed: 2 }]);
+		assert.deepEqual(plan.weights?.frame, [{ Weight: 4, Criterion: 'Cost' }, { Criterion: 'speed', Weight: 3, Norm: null }]);
+	});
+
+	it('has nothing to do for a decision already in frames', () => {
+		const plan = planConversion({ ...base, notes: [{ title: 'A', scores: [{ cost: 1 }] }], decision: { weights: [] } });
+		assert.equal(hasWork(plan), false);
 	});
 });

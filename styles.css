@@ -152,6 +152,9 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 
 .dmv-root .dmv-table th,
 .dmv-root .dmv-table td {
+	/* A note's own table rules break words anywhere; here only a name longer than its line may break. */
+	overflow-wrap: normal;
+	word-break: normal;
 	border: none;
 	font-size: 12px;
 	line-height: 1.4;
@@ -215,7 +218,7 @@ body .dmv-root .dmv-field > button.dmv-btn:not(.clickable-icon):not(.mod-cta):di
 	max-width: 16em;
 	white-space: normal;
 	text-wrap-style: balance;
-	overflow-wrap: anywhere;
+	overflow-wrap: break-word;
 }
 /* A long criterion name wraps within its header; the value fields below set the column's width. */
 .dmv-root .dmv-table .dmv-th-criterion {
@@ -227,10 +230,8 @@ body .dmv-root button.dmv-head-btn:not(.clickable-icon):not(.mod-cta):not(.mod-w
 	white-space: normal;
 }
 body .dmv-root button.dmv-head-btn:not(.clickable-icon):not(.mod-cta):not(.mod-warning) > span:first-child {
-	min-width: 0;
 	text-align: right;
 	text-wrap-style: balance;
-	overflow-wrap: anywhere;
 }
 
 .dmv-root .dmv-link {
@@ -412,7 +413,7 @@ body .dmv-root button.dmv-head-btn:not(.clickable-icon):not(.mod-cta):not(.mod-w
 	max-width: 16em;
 	white-space: normal;
 	text-wrap-style: balance;
-	overflow-wrap: anywhere;
+	overflow-wrap: break-word;
 }
 
 .dmv-track {

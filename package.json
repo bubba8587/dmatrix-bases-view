@@ -1,7 +1,7 @@
 {
 	"name": "decision-matrix-bases-view",
-	"version": "0.8.0",
-	"description": "A weighted decision matrix view for Bases. Score notes across criteria with a Solenoid Properties Weights frame and see them ranked.",
+	"version": "1.0.0",
+	"description": "A weighted decision matrix for Bases, built on Solenoid Properties Frames.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",

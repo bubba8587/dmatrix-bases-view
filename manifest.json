@@ -1,9 +1,9 @@
 {
 	"id": "decision-matrix-bases-view",
 	"name": "Decision Matrix Bases View",
-	"version": "0.8.0",
+	"version": "1.0.0",
 	"minAppVersion": "1.10.2",
-	"description": "A weighted decision matrix view for Bases. Score notes across criteria with a Solenoid Properties Weights frame and see them ranked.",
+	"description": "A weighted decision matrix for Bases, built on Solenoid Properties Frames. Score notes against criteria, weigh them, and see the ranking.",
 	"author": "jortscity",
 	"isDesktopOnly": false
 }

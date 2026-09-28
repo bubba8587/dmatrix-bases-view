@@ -84,6 +84,8 @@ export interface Model {
 	detail: Detail;
 	/** Whether criteria can be added, renamed and weighed (there is a Weights note with a frame or room for one). */
 	canEditCriteria: boolean;
+	/** A value cell had focus when this render began: rows must not move under the cursor. */
+	editing: boolean;
 }
 
 interface FocusMemo { key: string; value: string; dirty: boolean; start: number | null; end: number | null }
@@ -360,6 +362,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 			flips: flipWeights(result),
 			detail: this.detail,
 			canEditCriteria,
+			editing: memo?.key.startsWith('cell|') ?? false,
 		};
 
 		const reveal = this.reveal?.toLowerCase();

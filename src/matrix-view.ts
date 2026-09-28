@@ -23,8 +23,18 @@ export class DecisionMatrixView extends DecisionView {
 	/** Items top to bottom as drawn, for moving down and up a column. */
 	private drawn: DecisionItem[] = [];
 
+	/** The row order last drawn, held while a value cell has focus, so a save never moves the row being typed in. */
+	private heldOrder: string[] | null = null;
+
 	constructor(controller: QueryController, containerEl: HTMLElement) {
 		super(controller, containerEl, 'dmv-matrix');
+		// Leaving the table lets the rows take their new ranks.
+		this.rootEl.addEventListener('focusout', () => window.setTimeout(() => {
+			if (this.heldOrder && !this.rootEl.contains(this.rootEl.ownerDocument.activeElement)) {
+				this.heldOrder = null;
+				this.render();
+			}
+		}));
 	}
 
 	protected renderBody(body: HTMLElement, m: Model): void {
@@ -37,16 +47,20 @@ export class DecisionMatrixView extends DecisionView {
 		const maxAbs = m.result.scores.reduce((a, s) => Math.max(a, Math.abs(s)), 0);
 		const sorted = this.config.getSort().length > 0;
 		const rank = (it: DecisionItem) => m.result.ranks[m.row.get(it.id)!];
+		const held = m.editing ? this.heldOrder : null;
+		const heldAt = (it: DecisionItem) => { const k = held?.indexOf(it.id) ?? -1; return k < 0 ? Infinity : k; };
 		this.drawn = [];
 		for (const group of m.groups) {
 			if (group.key !== '') this.renderGroupRow(tbody, group, span);
 			if (this.collapsed.has(group.key)) continue;
-			const items = sorted ? group.items : [...group.items].sort((a, b) => rank(a) - rank(b));
+			const items = sorted ? group.items : [...group.items].sort(held ? (a, b) => heldAt(a) - heldAt(b) : (a, b) => rank(a) - rank(b));
 			for (const item of items) {
 				this.drawn.push(item);
 				this.renderRow(tbody, item, m, maxAbs);
 			}
 		}
+
+		this.heldOrder = this.drawn.map(it => it.id);
 
 		if (!m.canEditCriteria) return;
 		const foot = tbody.createEl('tr', { cls: 'dmv-new-row' }).createEl('td', { cls: 'dmv-td', attr: { colspan: String(span) } }).createDiv('dmv-foot');
@@ -231,7 +245,10 @@ export class DecisionMatrixView extends DecisionView {
 		input.addEventListener('keydown', (e) => {
 			const down = e.key === 'Enter' || e.key === 'ArrowDown';
 			if (!down && e.key !== 'ArrowUp') return;
-			const target = this.drawn[this.drawn.indexOf(item) + (down ? 1 : -1)];
+			// By path: a re-render since this field was drawn makes new row objects.
+			const at = this.drawn.findIndex(d => d.id === item.id);
+			const target = at < 0 ? undefined : this.drawn[at + (down ? 1 : -1)];
+			if (e.key !== 'Enter') e.preventDefault();
 			if (!target) return;
 			e.preventDefault();
 			const el = Array.from(this.rootEl.querySelectorAll<HTMLInputElement>('input[data-dmv-key]'))

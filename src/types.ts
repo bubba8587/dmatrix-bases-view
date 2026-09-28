@@ -1,13 +1,21 @@
-import type { TFile, BasesEntry } from 'obsidian';
+import type { TFile, BasesPropertyId } from 'obsidian';
+import type { Cell } from './scoring.ts';
+import type { Criterion } from './weights.ts';
 
-export type ScoreScale = 5 | 10 | 100;
+export interface MatrixCriterion extends Criterion {
+	id: BasesPropertyId;
+	/** A note property takes edits in the view; a formula is read-only. */
+	editable: boolean;
+	/** Checkbox criteria edit as a checkbox. */
+	logical: boolean;
+}
 
 export interface DecisionItem {
 	id: string;
 	file: TFile;
 	title: string;
-	scores: Record<string, number | null>;  // criterion name → raw score; null = not set
-	entry: BasesEntry;
+	/** Per criterion, in criteria order. */
+	cells: Cell[];
 }
 
 export interface ItemGroup {
@@ -15,16 +23,4 @@ export interface ItemGroup {
 	items: DecisionItem[];
 }
 
-export interface PluginSettings {
-	scale: ScoreScale;
-	scorePrefix: string;
-}
-
-export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
-	scale: 10,
-	scorePrefix: '',
-};
-
-export const ROW_HEIGHT = 36;
-export const HEADER_HEIGHT = 40;
-export const SCALES: ScoreScale[] = [5, 10, 100];
+export const DEFAULT_WEIGHTS_PROPERTY = 'weights';

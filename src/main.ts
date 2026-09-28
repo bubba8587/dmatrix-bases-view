@@ -1,47 +1,31 @@
-import { Plugin, PluginSettingTab, App, Setting, Notice } from 'obsidian';
+import { Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import type { App } from 'obsidian';
 import { DecisionMatrixView } from './matrix-view.ts';
 import { DecisionMatrixRankingsView } from './rankings-view.ts';
-import { getViewOptions } from './options.ts';
-import type { PluginSettings } from './types.ts';
-import { DEFAULT_PLUGIN_SETTINGS } from './types.ts';
+import { assignFrameType, solenoid } from './solenoid.ts';
+import { DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
+import { viewOptions } from './view.ts';
 
 export default class DecisionMatrixPlugin extends Plugin {
-	settings: PluginSettings = { ...DEFAULT_PLUGIN_SETTINGS };
-
 	async onload(): Promise<void> {
-		await this.loadSettings();
-
 		this.registerBasesView('decision-matrix', {
 			name: 'Decision Matrix',
 			icon: 'scale',
-			factory: (controller, containerEl) => new DecisionMatrixView(controller, containerEl, this),
-			options: (config) => getViewOptions(config),
+			factory: (controller, containerEl) => new DecisionMatrixView(controller, containerEl),
+			options: () => viewOptions(),
 		});
 		this.registerBasesView('decision-matrix-rankings', {
 			name: 'Decision Matrix Rankings',
 			icon: 'award',
-			factory: (controller, containerEl) => new DecisionMatrixRankingsView(controller, containerEl, this),
-			options: (config) => getViewOptions(config),
+			factory: (controller, containerEl) => new DecisionMatrixRankingsView(controller, containerEl),
+			options: () => viewOptions(),
 		});
 		this.addSettingTab(new DecisionMatrixSettingsTab(this.app, this));
-	}
-
-	onunload(): void {}
-
-	async loadSettings(): Promise<void> {
-		const data = await this.loadData();
-		if (data) {
-			this.settings = { ...DEFAULT_PLUGIN_SETTINGS, ...data };
-		}
-	}
-
-	async saveSettings(): Promise<void> {
-		await this.saveData(this.settings);
 	}
 }
 
 class DecisionMatrixSettingsTab extends PluginSettingTab {
-	constructor(app: App, private plugin: DecisionMatrixPlugin) {
+	constructor(app: App, plugin: Plugin) {
 		super(app, plugin);
 	}
 
@@ -49,204 +33,99 @@ class DecisionMatrixSettingsTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		containerEl.createEl('h3', { text: 'Decision Matrix Settings' });
-
-		new Setting(containerEl)
-			.setName('Default scale')
-			.setDesc('The default scoring scale for new views (5, 10, or 100).')
-			.addDropdown(dd => {
-				dd.addOption('5', '/ 5');
-				dd.addOption('10', '/ 10');
-				dd.addOption('100', '/ 100');
-				dd.setValue(String(this.plugin.settings.scale));
-				dd.onChange(async (value) => {
-					this.plugin.settings.scale = Number(value) as 5 | 10 | 100;
-					await this.plugin.saveSettings();
-				});
-			});
-
-		new Setting(containerEl)
-			.setName('Score prefix')
-			.setDesc("Strip this prefix from property names before display (e.g. 'score_'). Leave blank to disable.")
-			.addText(text => {
-				text.setPlaceholder('e.g. score_')
-					.setValue(this.plugin.settings.scorePrefix)
-					.onChange(async (value) => {
-						this.plugin.settings.scorePrefix = value;
-						await this.plugin.saveSettings();
-					});
-			});
-
-		containerEl.createEl('p', {
-			text: 'Weights are session-only — set them in the view or pre-fill them via weight_<criterion> properties on the note that embeds the base.',
-			cls: 'setting-item-description',
-		});
-
-		containerEl.createEl('h3', { text: 'Examples' });
-
-		new Setting(containerEl)
-			.setName('Create example notes')
-			.setDesc('Creates sample decision notes with scores in a "Decision Matrix Examples" folder.')
-			.addButton(btn => {
-				btn.setButtonText('Create examples')
-					.setCta()
-					.onClick(() => this.createExampleNotes());
-			});
-	}
-
-	private async createExampleNotes(): Promise<void> {
-		const vault = this.app.vault;
-		const folderPath = 'Decision Matrix Examples';
-
-		if (!vault.getAbstractFileByPath(folderPath)) {
-			await vault.createFolder(folderPath);
+		if (!solenoid(this.app)) {
+			new Setting(containerEl)
+				.setName('Solenoid Properties')
+				.setDesc('Decision Matrix needs the Solenoid Properties plugin for its Weights frame. Install and enable it from Community plugins.');
 		}
 
-		const notes: Array<{ name: string; content: string }> = [
-			{
-				name: 'Laptop A',
-				content: [
-					'---',
-					'title: Laptop A',
-					'cost: 1200',
-					'performance: 7',
-					'portability: 6',
-					'build_quality: 9',
-					'battery: 7',
-					'---',
-					'',
-					'High-end workstation laptop. Great build, decent battery.',
-				].join('\n'),
-			},
-			{
-				name: 'Laptop B',
-				content: [
-					'---',
-					'title: Laptop B',
-					'cost: 950',
-					'performance: 9',
-					'portability: 4',
-					'build_quality: 8',
-					'battery: 5',
-					'---',
-					'',
-					'Gaming powerhouse. Heavy but fast.',
-				].join('\n'),
-			},
-			{
-				name: 'Laptop C',
-				content: [
-					'---',
-					'title: Laptop C',
-					'cost: 800',
-					'performance: 5',
-					'portability: 9',
-					'build_quality: 7',
-					'battery: 9',
-					'---',
-					'',
-					'Ultra-portable with great battery. Budget-friendly.',
-				].join('\n'),
-			},
-			{
-				name: 'Laptop D',
-				content: [
-					'---',
-					'title: Laptop D',
-					'cost: 1600',
-					'performance: 8',
-					'portability: 7',
-					'build_quality: 9',
-					'battery: 8',
-					'---',
-					'',
-					'Premium all-rounder. Expensive but balanced.',
-				].join('\n'),
-			},
-		];
+		new Setting(containerEl)
+			.setName('Example notes')
+			.setDesc('Adds a "Decision Matrix Examples" folder: four laptops, a base with both views, and a decision note with a Weights frame.')
+			.addButton(btn => btn.setButtonText('Create Examples').setCta().onClick(() => void createExamples(this.app)));
+	}
+}
 
-		const baseContent = [
-			'views:',
-			'  - type: decision-matrix',
-			'    name: Laptop Comparison',
-			'    filters:',
-			'      and:',
-			`        - file.folder == "${folderPath}"`,
-			'        - \'file.ext == "md"\'',
-			'        - file.name != this.file.name',
-			'        - \'file.name != "Laptop Decision"\'',
-			'    order:',
-			'      - title',
-			'      - cost',
-			'      - performance',
-			'      - portability',
-			'      - build_quality',
-			'      - battery',
-			'  - type: decision-matrix-rankings',
-			'    name: Laptop Rankings',
-			'    filters:',
-			'      and:',
-			`        - file.folder == "${folderPath}"`,
-			'        - \'file.ext == "md"\'',
-			'        - file.name != this.file.name',
-			'        - \'file.name != "Laptop Decision"\'',
-			'',
-		].join('\n');
+const FOLDER = 'Decision Matrix Examples';
 
-		// Decision note is excluded from query results by the base filter (file.name != "Laptop Decision").
-		// It embeds the base and provides weights via its frontmatter properties.
-		const decisionNote = [
-			'---',
+const LAPTOPS: { name: string; props: Record<string, number | boolean>; blurb: string }[] = [
+	{ name: 'Laptop A', props: { cost: 1200, performance: 7, portability: 6, build_quality: 9, battery: 7, backlit: true }, blurb: 'High-end workstation. Great build, decent battery.' },
+	{ name: 'Laptop B', props: { cost: 950, performance: 9, portability: 4, build_quality: 8, battery: 5, backlit: true }, blurb: 'Gaming powerhouse. Heavy but fast.' },
+	{ name: 'Laptop C', props: { cost: 800, performance: 5, portability: 9, build_quality: 7, battery: 9, backlit: false }, blurb: 'Ultra-portable with great battery.' },
+	{ name: 'Laptop D', props: { cost: 1600, performance: 8, portability: 7, build_quality: 9, battery: 8, backlit: true }, blurb: 'Premium all-rounder. Expensive but balanced.' },
+];
+
+async function createExamples(app: App): Promise<void> {
+	const vault = app.vault;
+	if (!vault.getAbstractFileByPath(FOLDER)) await vault.createFolder(FOLDER);
+
+	const note = (props: string[], body: string[]) => ['---', ...props, '---', '', ...body, ''].join('\n');
+	const filters = [
+		'    filters:',
+		'      and:',
+		`        - file.folder == "${FOLDER}"`,
+		'        - \'file.ext == "md"\'',
+		'        - \'file.name != "Laptop Decision"\'',
+	];
+	const criteria = Object.keys(LAPTOPS[0].props);
+	const base = [
+		'views:',
+		'  - type: decision-matrix',
+		'    name: Laptop Matrix',
+		...filters,
+		'    order:',
+		...criteria.map(c => `      - ${c}`),
+		'  - type: decision-matrix-rankings',
+		'    name: Laptop Rankings',
+		...filters,
+		'    order:',
+		...criteria.map(c => `      - ${c}`),
+		'    detail: breakdown',
+		'',
+	].join('\n');
+
+	// The Weights frame, one row per criterion. Cost is the price in dollars: a higher price is worse,
+	// so it weighs negative and ranks by order instead of by size.
+	const weights: [string, number, string | null][] = [
+		['cost', -3, 'Rank'],
+		['performance', 5, null],
+		['portability', 2, null],
+		['build_quality', 4, null],
+		['battery', 3, null],
+		['backlit', 1, null],
+	];
+	const decision = note(
+		[
 			'title: Laptop Decision',
-			'weight_cost: -3',
-			'weight_performance: 5',
-			'weight_portability: 2',
-			'weight_build_quality: 4',
-			'weight_battery: 3',
-			'---',
-			'',
+			`${DEFAULT_WEIGHTS_PROPERTY}:`,
+			...weights.flatMap(([c, w, n]) => [`  - Criterion: ${c}`, `    Weight: ${w}`, `    Norm: ${n ?? 'null'}`]),
+		],
+		[
 			'# Laptop Decision',
 			'',
-			'My weighted criteria for choosing a laptop.',
-			'`cost` is the actual price in USD — a higher price is worse, so it gets a **negative weight**.',
-			'Enable **Rank Raws** on the cost column to rank laptops by price rather than using the raw dollar value.',
+			'The weights live in the `weights` Frame above. Cost weighs negative because a higher price is worse, and its Norm is Rank so the laptops compare by price order rather than dollars.',
 			'',
-			'| Criterion | Weight | Reason |',
-			'| --- | --- | --- |',
-			'| Performance | +5 | Most important |',
-			'| Build quality | +4 | Matters a lot |',
-			'| Battery | +3 | Important for travel |',
-			'| Portability | +2 | Nice-to-have |',
-			'| Cost (USD) | -3 | Higher price = penalised |',
+			'![[laptop-comparison.base#Laptop Matrix]]',
 			'',
-			'## Decision Matrix',
-			'',
-			'![[laptop-comparison.base]]',
-			'',
-		].join('\n');
+			'![[laptop-comparison.base#Laptop Rankings]]',
+		],
+	);
 
-		const allFiles = [
-			...notes.map(n => ({ path: `${folderPath}/${n.name}.md`, content: n.content })),
-			{ path: `${folderPath}/laptop-comparison.base`, content: baseContent },
-			{ path: `${folderPath}/Laptop Decision.md`, content: decisionNote },
-		];
+	const files = [
+		...LAPTOPS.map(l => ({
+			path: `${FOLDER}/${l.name}.md`,
+			content: note([`title: ${l.name}`, ...Object.entries(l.props).map(([k, v]) => `${k}: ${v}`)], [l.blurb]),
+		})),
+		{ path: `${FOLDER}/laptop-comparison.base`, content: base },
+		{ path: `${FOLDER}/Laptop Decision.md`, content: decision },
+	];
 
-		let created = 0;
-		let skipped = 0;
-
-		for (const file of allFiles) {
-			if (vault.getAbstractFileByPath(file.path)) {
-				skipped++;
-			} else {
-				await vault.create(file.path, file.content);
-				created++;
-			}
-		}
-
-		if (created > 0) {
-			new Notice(`Created ${created} file${created > 1 ? 's' : ''} in "${folderPath}/"${skipped > 0 ? ` (${skipped} already existed)` : ''}`);
-		} else {
-			new Notice(`All example files already exist in "${folderPath}/"`);
-		}
+	assignFrameType(app, DEFAULT_WEIGHTS_PROPERTY);
+	let created = 0;
+	for (const f of files) {
+		if (vault.getAbstractFileByPath(f.path)) continue;
+		await vault.create(f.path, f.content);
+		created++;
 	}
+	new Notice(created > 0 ? `Created ${created} files in ${FOLDER}` : `The examples already exist in ${FOLDER}`);
 }

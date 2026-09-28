@@ -1,11 +1,12 @@
 {
 	"name": "decision-matrix-bases-view",
-	"version": "0.7.3",
-	"description": "A weighted decision matrix view for Bases. Score options across criteria, apply weights, and see ranked results.",
+	"version": "0.8.0",
+	"description": "A weighted decision matrix view for Bases. Score notes across criteria with a Solenoid Properties Weights frame and see them ranked.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"test": "node --test 'tests/*.test.ts'",
 		"deploy": "bash deploy.sh"
 	},
 	"keywords": [
@@ -19,7 +20,7 @@
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^22.0.0",
-"esbuild": "0.24.0",
+		"esbuild": "0.24.0",
 		"obsidian": "latest",
 		"tslib": "2.8.0",
 		"typescript": "^5.5.0"

@@ -1,168 +1,136 @@
-import { BasesViewConfig, BasesEntryGroup } from 'obsidian';
+/**
+ * The Decision Matrix view: one table, an option per row and a criterion per column, with the
+ * criterion's Weight and Norm under its name. Values edit in place and save to the option's note;
+ * Weight and Norm save to the Weights frame.
+ */
 import type { QueryController } from 'obsidian';
-import type DecisionMatrixPlugin from './main.ts';
-import type { DecisionItem, ItemGroup, ScoreScale } from './types.ts';
-import { detectCriteria, detectCriteriaFromFiles, extractItem } from './field-mapping.ts';
-import { buildMatrixScaffold, renderRawTable, renderWeightedTable, computeRankedScores, renderToolbar, normalizeScores } from './renderer.ts';
-import { DecisionMatrixBaseView } from './base-view.ts';
+import { formatScore } from './scoring.ts';
+import type { Normalize } from './scoring.ts';
+import type { DecisionItem, ItemGroup, MatrixCriterion } from './types.ts';
+import { DecisionView, NORMALIZE_OPTIONS, draftInput, rankText } from './view.ts';
+import type { Model } from './view.ts';
 
-export class DecisionMatrixView extends DecisionMatrixBaseView {
+export class DecisionMatrixView extends DecisionView {
 	type = 'decision-matrix';
-	private scrollEl: HTMLElement;
-	private rootEl: HTMLElement;
-	private plugin: DecisionMatrixPlugin;
+	private collapsed = new Set<string>();
 
-	private _collapsedGroups: Set<string> = new Set();
-	private _rankRawsColumns: Set<string> = new Set();
-	private _foldColsActive = false;
-	private _foldColsCount = 3;
-
-	constructor(controller: QueryController, containerEl: HTMLElement, plugin: DecisionMatrixPlugin) {
-		super(controller);
-		this.scrollEl = containerEl;
-		this.rootEl = containerEl.createDiv('dmv-root');
-		this.plugin = plugin;
+	constructor(controller: QueryController, containerEl: HTMLElement) {
+		super(controller, containerEl, 'dmv-matrix');
 	}
 
-	onDataUpdated(): void {
-		this._render();
+	protected renderBody(body: HTMLElement, m: Model): void {
+		const wrap = body.createDiv('dmv-table-wrap');
+		const table = wrap.createEl('table', { cls: 'dmv-table' });
+		this.renderHead(table.createEl('thead'), m);
+
+		const tbody = table.createEl('tbody');
+		const maxAbs = m.result.scores.reduce((a, s) => Math.max(a, Math.abs(s)), 0);
+		const sorted = this.config.getSort().length > 0;
+		for (const group of m.groups) {
+			if (group.key !== '') this.renderGroupRow(tbody, group, m.criteria.length + 3);
+			if (this.collapsed.has(group.key)) continue;
+			const items = sorted ? group.items : [...group.items].sort((a, b) => m.result.ranks[m.row.get(a.id)!] - m.result.ranks[m.row.get(b.id)!]);
+			for (const item of items) this.renderRow(tbody, item, m, maxAbs);
+		}
 	}
 
-	onunload(): void {}
+	private renderHead(thead: HTMLElement, m: Model): void {
+		const names = thead.createEl('tr', { cls: 'dmv-head' });
+		names.createEl('th', { text: 'Rank', cls: 'dmv-th dmv-th-rank' });
+		names.createEl('th', { text: 'Option', cls: 'dmv-th dmv-th-option' });
+		for (const c of m.criteria) names.createEl('th', { text: c.label, cls: 'dmv-th dmv-th-num', attr: { title: c.name } });
+		names.createEl('th', { text: 'Score', cls: 'dmv-th dmv-th-num dmv-th-score', attr: { title: 'Σ(value × weight) / Σ|weight|' } });
 
-	protected _render(): void {
-		const container = this.rootEl;
-		if (!this.data) return;
-		container.empty();
+		const weights = thead.createEl('tr', { cls: 'dmv-weights-row' });
+		weights.createEl('th', { cls: 'dmv-th' });
+		const caption = weights.createEl('th', { cls: 'dmv-th dmv-th-option' });
+		caption.createSpan({ text: 'Weight', cls: 'dmv-caption' });
+		caption.createSpan({ text: 'Norm', cls: 'dmv-caption' });
+		m.criteria.forEach((c, j) => {
+			const th = weights.createEl('th', { cls: 'dmv-th dmv-th-num' });
+			const cell = th.createDiv('dmv-weight-cell');
+			draftInput(cell, 'dmv-input dmv-weight-input', String(m.result.weights[j]), (text) => {
+				const w = text === '' ? 1 : Number(text);
+				if (Number.isFinite(w)) this.setWeight(c, w);
+				else this.render();
+			}, { 'aria-label': `Weight of ${c.label}`, title: 'Weight. Negative when lower is better.' });
+			this.renderNormSelect(cell, c, m.resolved.norms[j]);
+		});
+		weights.createEl('th', { cls: 'dmv-th' });
+	}
 
-		const config: BasesViewConfig = this.config;
-		const scale = this.plugin.settings.scale;
+	private renderNormSelect(parent: HTMLElement, c: MatrixCriterion, own: Normalize | null): void {
+		const select = parent.createEl('select', {
+			cls: own ? 'dmv-norm is-set' : 'dmv-norm',
+			attr: { 'aria-label': `Norm of ${c.label}`, title: 'Norm. Blank follows the view\'s Normalize.' },
+		});
+		const fallback = NORMALIZE_OPTIONS.find(o => o.value === this.normalize)!.label;
+		select.createEl('option', { text: `(${fallback})`, value: '' });
+		for (const o of NORMALIZE_OPTIONS) select.createEl('option', { text: o.label, value: o.value });
+		select.value = own ?? '';
+		select.addEventListener('change', () => this.setNorm(c, (select.value || null) as Normalize | null));
+	}
 
-		// Detect score criteria from the order array; fall back to frontmatter scan
-		// if getOrder() yields no numeric criteria (happens on non-primary views in multi-view bases)
-		const rawOrder: string[] = config.getOrder() ?? [];
-		const allEntries = this.data.groupedData.flatMap((g: BasesEntryGroup) => g.entries);
-		let criteria = detectCriteria(allEntries, rawOrder);
-		if (criteria.length === 0) {
-			criteria = detectCriteriaFromFiles(allEntries, this.app);
-		}
+	private renderGroupRow(tbody: HTMLElement, group: ItemGroup, span: number): void {
+		const tr = tbody.createEl('tr', { cls: 'dmv-group' });
+		const td = tr.createEl('td', { attr: { colspan: String(span) } });
+		const collapsed = this.collapsed.has(group.key);
+		td.createSpan({ cls: collapsed ? 'dmv-chevron is-collapsed' : 'dmv-chevron' });
+		td.createSpan({ text: group.key });
+		td.createSpan({ text: String(group.items.length), cls: 'dmv-count' });
+		tr.addEventListener('click', () => {
+			if (collapsed) this.collapsed.delete(group.key);
+			else this.collapsed.add(group.key);
+			this.render();
+		});
+	}
 
-		if (criteria.length === 0) {
-			container.createEl('div', {
-				text: 'No numeric score properties found. Add number properties to your notes and include them in the base order.',
-				cls: 'dmv-empty',
-			});
-			return;
-		}
+	private renderRow(tbody: HTMLElement, item: DecisionItem, m: Model, maxAbs: number): void {
+		const i = m.row.get(item.id)!;
+		const rank = m.result.ranks[i];
+		const tr = tbody.createEl('tr', { cls: rank === 1 ? 'dmv-row is-top' : 'dmv-row' });
+		tr.createEl('td', { text: rankText(rank, m.result.tied[i]), cls: 'dmv-td dmv-td-rank' });
+		const name = tr.createEl('td', { cls: 'dmv-td dmv-td-option' });
+		const link = name.createEl('a', { text: item.title, cls: 'dmv-link', href: '#' });
+		link.addEventListener('click', (e) => { e.preventDefault(); this.openNote(item, e); });
 
-		// Initialize any new criteria we haven't seen yet this session
-		this._initMissingWeights(criteria);
-
-		// Extract items
-		const groups: ItemGroup[] = this.data.groupedData.map((g: BasesEntryGroup) => ({
-			key: g.hasKey() ? String(g.key) : '',
-			items: g.entries.map(entry => extractItem(entry, criteria)),
-		}));
-		const items = groups.flatMap(g => g.items);
-
-		const rankedScores = this._rankRawsColumns.size > 0
-			? computeRankedScores(groups, criteria, scale)
-			: undefined;
-
-		// Build scaffold
-		const { toolbar, body, rawSection, weightedSection } = buildMatrixScaffold(container);
-
-		// Embedding hint — inserted between toolbar and body when no weight_ props on active note
-		const weightsFromNote = this._hasNoteWeights(criteria);
-		if (!weightsFromNote) {
-			const hint = body.createEl('div', { cls: 'dmv-embed-hint' });
-			body.insertBefore(hint, body.firstChild);
-			const first = criteria[0] ?? 'criterion';
-			hint.createEl('span', { text: '💡 Embed this base in a note and add ' });
-			hint.createEl('code', { text: `weight_${first}: 3` });
-			hint.createEl('span', { text: ' (one per criterion) to that note\'s frontmatter to pre-fill weights. Edits here are session-only.' });
-		}
-
-		// Toolbar
-		renderToolbar(toolbar, {
-			currentScale: scale,
-			onScaleChange: (s) => { this.plugin.settings.scale = s; this.plugin.saveSettings(); this._render(); },
-			onReloadWeights: () => this._reloadWeightsFromNote(criteria),
-			foldColsActive: this._foldColsActive,
-			foldColsCount: this._foldColsCount,
-			onFoldToggle: () => { this._foldColsActive = !this._foldColsActive; this._render(); },
-			onFoldCountChange: (n) => { this._foldColsCount = n; if (this._foldColsActive) this._render(); },
-			rankRawsActive: this._rankRawsColumns.size > 0,
-			onNormalize: () => normalizeScores(this.app, items, criteria, scale),
+		m.criteria.forEach((c, j) => {
+			const td = tr.createEl('td', { cls: 'dmv-td dmv-td-num' });
+			if (m.detail === 'breakdown') {
+				const contribution = m.result.contributions[j][i];
+				td.createDiv({ text: formatScore(contribution), cls: contribution < 0 ? 'dmv-contrib is-negative' : 'dmv-contrib' });
+			}
+			this.renderValue(td, item, c, j);
 		});
 
-		const scorePrefix = this.plugin.settings.scorePrefix;
+		const score = tr.createEl('td', { cls: 'dmv-td dmv-td-num dmv-td-score' });
+		const s = m.result.scores[i];
+		score.createSpan({ text: formatScore(s), cls: 'dmv-score' });
+		const gauge = score.createDiv('dmv-gauge');
+		const fill = gauge.createDiv(s < 0 ? 'dmv-gauge-fill is-negative' : 'dmv-gauge-fill');
+		fill.style.width = `${maxAbs > 0 ? (Math.abs(s) / maxAbs) * 100 : 0}%`;
+	}
 
-		const foldedColCount = this._foldColsActive ? Math.min(this._foldColsCount, criteria.length) : 0;
-
-		// Raw scores table — hidden entirely when columns are folded
-		if (foldedColCount > 0) {
-			rawSection.style.display = 'none';
+	private renderValue(td: HTMLElement, item: DecisionItem, c: MatrixCriterion, j: number): void {
+		const cell = item.cells[j];
+		const sub = td.hasChildNodes();
+		if (c.logical) {
+			const box = td.createEl('input', { type: 'checkbox', cls: sub ? 'dmv-check is-sub' : 'dmv-check' });
+			box.checked = cell === true;
+			box.disabled = !c.editable;
+			box.addEventListener('change', () => void this.writeCell(item, c, box.checked));
+			return;
 		}
-
-		renderRawTable(rawSection, groups, criteria, scale,
-			async (item, criterion, newVal) => {
-				await this.app.fileManager.processFrontMatter(item.file, (fm: Record<string, unknown>) => {
-					fm[criterion] = newVal;
-				});
-			},
-			(item, e) => this._openNote(item, e),
-			scorePrefix,
-			this._collapsedGroups,
-			(key) => {
-				if (this._collapsedGroups.has(key)) {
-					this._collapsedGroups.delete(key);
-				} else {
-					this._collapsedGroups.add(key);
-				}
-				this._render();
-			},
-			this._rankRawsColumns,
-			rankedScores,
-			foldedColCount,
-		);
-
-		// Weighted scores table
-		renderWeightedTable(weightedSection, groups, criteria, scale,
-			this._weights,
-			weightsFromNote,
-			(criterion, value) => {
-				this._weights[criterion] = value;
-				this._render();
-			},
-			(item, e) => this._openNote(item, e),
-			scorePrefix,
-			this._collapsedGroups,
-			(key) => {
-				if (this._collapsedGroups.has(key)) {
-					this._collapsedGroups.delete(key);
-				} else {
-					this._collapsedGroups.add(key);
-				}
-				this._render();
-			},
-			this._rankRawsColumns,
-			rankedScores,
-			foldedColCount,
-			(criterion, checked) => {
-				if (checked) {
-					this._rankRawsColumns.add(criterion);
-				} else {
-					this._rankRawsColumns.delete(criterion);
-				}
-				this._render();
-			},
-		);
+		const text = cell === null ? '' : String(cell);
+		if (!c.editable) {
+			td.createDiv({ text, cls: sub ? 'dmv-value is-sub' : 'dmv-value' });
+			return;
+		}
+		draftInput(td, sub ? 'dmv-input dmv-value-input is-sub' : 'dmv-input dmv-value-input', text, (next) => {
+			if (next === '') { void this.writeCell(item, c, null); return; }
+			const n = Number(next);
+			if (Number.isFinite(n)) void this.writeCell(item, c, n);
+			else this.render();
+		}, { 'aria-label': `${c.label} of ${item.title}`, placeholder: '0' });
 	}
-
-	private _openNote(item: DecisionItem, e?: MouseEvent): void {
-		const leaf = this.app.workspace.getLeaf(e ? (e.ctrlKey || e.metaKey) : false);
-		if (leaf) leaf.openFile(item.file);
-	}
-
 }

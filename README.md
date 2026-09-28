@@ -1,41 +1,62 @@
 # Decision Matrix Bases View
 
-This plugin lets you build decision matrices inside [Obsidian Bases](https://help.obsidian.md/bases). A decision matrix combines your raw scores for different options across various criteria with how much each criterion matters to you — giving you an objective framework for making a choice.
+A weighted decision matrix for [Obsidian Bases](https://help.obsidian.md/bases). Each note in the base is an option, its number and checkbox properties are the criteria, and a Weights frame on your decision note says how much each criterion counts. The view scores and ranks the options by the same rules as [Solenoid](https://solenoid-ngc.vercel.app)'s Decision Matrix node, so a decision reads the same in both.
 
-## Features
+![The Decision Matrix and Rankings views in the Solenoid look](assets/screenshot.png)
 
-- Two views: a scoring table with weighted totals and rankings, and a visual rankings view with a podium and card list
-- Click any score to edit it; changes save to the note's frontmatter straight away
-- Rows are ranked by weighted average
-- An empty cell means you haven't scored it yet; a 0 means you deliberately gave it zero — both count as 0 in the calculation
-- Negative weights let you penalize criteria where a higher value is worse (e.g. cost, risk)
-- Rank Raws: when criteria are on incompatible scales (e.g. price in dollars vs. quality out of 10), you can convert a column's values to competition ranks before scoring. The ranked position is shown alongside the original value.
-- Collapsible row groups
-- Score out of 5, 10, or 100 — switchable per view
+## Requirements
 
-## Installation
+- Obsidian **1.10.2** or later.
+- The **[Solenoid Properties](https://github.com/bubba8587/Solenoid-Properties)** plugin, enabled. The Weights frame is a Solenoid Properties Frame property, and the view edits it with Solenoid's Frame editor. The view is styled for Solenoid Properties' Solenoid look, so turn that on in its settings.
 
-Requires Obsidian **1.9.10+** with Bases enabled.
+## Views
 
-Search for **Decision Matrix Bases View** in Settings → Community Plugins.
+- **Decision Matrix**: a table with an option per row and a criterion per column. Each criterion's Weight and Norm sit under its name. Values edit in place and save to the option's note.
+- **Decision Matrix Rankings**: every option best first as a labeled bar.
 
-## Setup
+Both views have two controls, saved with the view:
 
-**The fastest way to get started:** go to Settings → Decision Matrix and hit **Create examples**. It drops a ready-to-use folder into your vault — four notes, a base file, and a decision note with weights already configured. Open it and you'll see both views in action.
+- **Normalize**: Raw, ÷ Max (the default) or Rank. It puts criteria on one footing, so dollars and out-of-10 ratings compare. ÷ Max divides each criterion by its largest value. Rank keeps only the order, worst 0 to best 1. A criterion's own Norm overrides it.
+- **Output**: Summary or Breakdown. Breakdown shows each criterion's signed contribution, which add up to the Score, so a negative weight reads as the penalty it is. In the Rankings view each bar splits into those contributions.
 
-![Decision Matrix example](assets/screenshot.png)
+## Scoring
 
-### How it works
+- Score = `Σ(value × weight) / Σ|weight|`, rounded to 4 decimal places.
+- Options rank on the rounded score. Equal scores share a rank, shown as `=2`.
+- A blank value counts as 0, and a checkbox counts as 1 or 0. Dates and text are never criteria.
+- A negative weight favors lower values, like cost or risk.
 
-The view pulls scores from any notes in your vault. The only requirement is that those notes have **numeric properties** — those automatically become your scoring criteria.
+## The Weights frame
 
-**Naming your properties**
+The decision note is the note that embeds the base (`![[my-decision.base]]`). Give it a Frame property named `weights`, one row per criterion:
 
-Use whatever property names make sense (`cost`, `quality`, `ease_of_use`). If you want to keep them grouped with a shared prefix in your vault (e.g. `score_cost`, `score_quality`), set that prefix in Settings and the view strips it from column headers automatically.
+```yaml
+weights:
+  - Criterion: cost
+    Weight: -3
+    Norm: Rank
+  - Criterion: performance
+    Weight: 5
+    Norm: null
+```
 
-**Keeping weights between sessions**
+- **Criterion** matches a property name or its Bases display name, ignoring case.
+- **Weight** defaults to 1 for a criterion the frame leaves out.
+- **Norm** is optional: Raw, ÷Max or Rank. Blank follows the view's Normalize.
 
-Weights you set in the view are session-only by default. To make them stick, add `weight_<propertyname>` properties to the note that contains `![[yourfile.base]]` — for example, `weight_cost: 3`. The view loads those every time it opens, and you can reset to them at any time with the ↺ button.
+This is the same table Solenoid's Decision Matrix takes on its Weights input, so the note imports straight into Solenoid.
+
+**Create Weights** in the toolbar writes a frame with every criterion at weight 1. After that the toolbar shows the frame's chip, which opens Solenoid's Frame editor. The weight fields and Norm menus in the table write to the same frame.
+
+Each view has two options in the Bases view settings: **Weights property**, to use another property name, and **Weights note**, to read the frame from a note other than the embedding one.
+
+## Examples
+
+Settings → Decision Matrix → **Create Examples** adds a "Decision Matrix Examples" folder: four laptops, a base with both views, and a decision note with a Weights frame that embeds both.
+
+## Development
+
+`npm run build` builds `main.js`; `npm test` runs the scoring tests, which mirror Solenoid's own Decision Matrix tests.
 
 ## License
 

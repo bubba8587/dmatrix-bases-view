@@ -1,0 +1,33 @@
+# Run by hand (Actions → Build → Run workflow, pick a branch): tests and builds it, and keeps the
+# plugin as a download on the run's page (Summary → Artifacts), to try in a vault without a release.
+name: Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      - run: npm run lint
+
+      - run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: decision-matrix-bases-view
+          path: |
+            main.js
+            manifest.json
+            styles.css

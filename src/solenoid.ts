@@ -17,7 +17,13 @@ export const FRAME_TYPE = 'solenoid-frame';
 const FRAME_KIND = { id: FRAME_TYPE, name: 'Frame', shape: 'frame' } as const;
 
 /** A column name typed somewhere in the vault, as Solenoid Properties suggests it. */
-export interface ColumnName { name: string; type: ColumnType; properties: string[] }
+export interface ColumnName {
+	name: string;
+	type: ColumnType;
+	/** Every type the name is typed as, the most used first; releases before it give only `type`. */
+	types?: ColumnType[];
+	properties: string[];
+}
 
 /** Solenoid Properties' `api`, version 1. */
 interface SolenoidApiV1 {

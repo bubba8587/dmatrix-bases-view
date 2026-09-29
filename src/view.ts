@@ -358,7 +358,7 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		const bookkeeping = new Set([this.weightsProperty, this.resultProperty, ...keys.filter(k => isBookkeeping(Object.keys(picks[k] ?? {})))]);
 		const taken = new Set((this.model?.criteria ?? []).map(c => c.name.trim().toLowerCase()));
 		return names.filter(o =>
-			(o.type === 'number' || o.type === 'logical')
+			(o.types ?? [o.type]).some(t => t === 'number' || t === 'logical')
 			&& o.properties.some(p => !bookkeeping.has(p))
 			&& !taken.has(o.name.trim().toLowerCase()));
 	}
@@ -817,6 +817,8 @@ function isBookkeeping(columns: string[]): boolean {
 	return weights || (cols.has('option') && cols.has('score') && cols.has('rank'));
 }
 
+const TYPE_NAMES: Record<ColumnType, string> = { number: 'Number', string: 'Text', date: 'Date', logical: 'Boolean' };
+
 /** Suggests criterion names as the field is typed in; a pick commits the field. */
 export class CriterionSuggest extends AbstractInputSuggest<ColumnName> {
 	constructor(app: App, private input: HTMLInputElement, private names: () => Promise<ColumnName[]>) {
@@ -833,6 +835,9 @@ export class CriterionSuggest extends AbstractInputSuggest<ColumnName> {
 
 	renderSuggestion(option: ColumnName, el: HTMLElement): void {
 		el.setText(option.name);
+		// Typed more than one way in the vault: say so, since the criterion will score only its numbers.
+		const types = option.types ?? [option.type];
+		if (types.length > 1) el.createSpan({ text: ` ${types.map(t => TYPE_NAMES[t]).join(' or ')}`, cls: 'dmv-muted' });
 	}
 
 	selectSuggestion(option: ColumnName): void {

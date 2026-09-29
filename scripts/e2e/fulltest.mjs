@@ -211,6 +211,18 @@ if (suggests) {
   await page.keyboard.press("ArrowDown"); await page.keyboard.press("Enter"); await w(300);
   const picked = await ev((c) => { const th = document.querySelector(".solenoid-popup-layer").shadowRoot.querySelectorAll("thead th")[c]; return [th.querySelector(".table-popup__colhead-input").value, th.querySelector(".table-popup__coltype").title]; }, col);
   check("Picking a suggested name sets the column's type", picked[0] === "weight_kg" && /Number/.test(picked[1]), picked.join(" · "));
+  // A name typed two ways: the list says so, and a pick names the column without guessing its type.
+  await ev(async () => { const api = app.plugins.getPlugin("solenoid-properties").api; app.metadataTypeManager.setType("specs2", "solenoid-frame"); await api.setColumnTypes("specs", { rating: "string" }); await api.setColumnTypes("specs2", { rating: "number" }); }); await w(300);
+  await ev(() => [...document.querySelector(".solenoid-popup-layer").shadowRoot.querySelectorAll("button")].find((x) => x.textContent === "Add Column").click()); await w(300);
+  const col2 = (await popup()).heads.length;
+  const typeBefore = await ev((c) => document.querySelector(".solenoid-popup-layer").shadowRoot.querySelectorAll("thead th")[c].querySelector(".table-popup__coltype").title, col2);
+  await page.click(`${LAYER}thead th:nth-child(${col2 + 1}) .table-popup__colhead-input`);
+  await page.keyboard.type("rati"); await w(400);
+  const mixed = await ev(() => [...document.querySelector(".solenoid-popup-layer").shadowRoot.querySelectorAll(".table-popup__suggest-item")].map((x) => x.textContent));
+  check("A name typed two ways is offered with both types", mixed.some((t) => /^rating/.test(t) && /Text or Number/.test(t)), mixed.join(", "));
+  await page.keyboard.press("ArrowDown"); await page.keyboard.press("Enter"); await w(300);
+  const mixedPick = await ev((c) => { const th = document.querySelector(".solenoid-popup-layer").shadowRoot.querySelectorAll("thead th")[c]; return [th.querySelector(".table-popup__colhead-input").value, th.querySelector(".table-popup__coltype").title]; }, col2);
+  check("Picking it sets the name and leaves the column's type alone", mixedPick[0] === "rating" && mixedPick[1] === typeBefore, mixedPick.join(" · "));
   await ev(() => [...document.querySelector(".solenoid-popup-layer").shadowRoot.querySelectorAll("button")].find((x) => x.textContent === "Cancel").click()); await w(500);
   await ev((M) => [...document.querySelectorAll(`${M} .dmv-text-btn`)].find((x) => x.textContent === "Add criterion").click(), M); await w(400);
   await page.keyboard.type("wei"); await w(600);

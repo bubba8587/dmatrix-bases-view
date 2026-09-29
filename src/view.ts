@@ -817,6 +817,8 @@ function isBookkeeping(columns: string[]): boolean {
 	return weights || (cols.has('option') && cols.has('score') && cols.has('rank'));
 }
 
+/** Solenoid's column type glyphs and names, as its Frame editor's type button shows them. */
+const TYPE_GLYPHS: Record<ColumnType, string> = { number: '#', string: 'T', date: 'D', logical: 'B' };
 const TYPE_NAMES: Record<ColumnType, string> = { number: 'Number', string: 'Text', date: 'Date', logical: 'Boolean' };
 
 /** Suggests criterion names as the field is typed in; a pick commits the field. */
@@ -837,7 +839,9 @@ export class CriterionSuggest extends AbstractInputSuggest<ColumnName> {
 		el.setText(option.name);
 		// Typed more than one way in the vault: say so, since the criterion will score only its numbers.
 		const types = option.types ?? [option.type];
-		if (types.length > 1) el.createSpan({ text: ` ${types.map(t => TYPE_NAMES[t]).join(' or ')}`, cls: 'dmv-muted' });
+		if (types.length < 2) return;
+		const glyphs = el.createSpan({ cls: 'dmv-suggest-types', attr: { title: `Typed as ${types.map(t => TYPE_NAMES[t]).join(' and ')} in other frames` } });
+		for (const t of types) glyphs.createSpan({ text: TYPE_GLYPHS[t], cls: 'dmv-typeglyph' });
 	}
 
 	selectSuggestion(option: ColumnName): void {

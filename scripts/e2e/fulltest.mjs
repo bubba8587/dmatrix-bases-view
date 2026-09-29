@@ -219,7 +219,7 @@ if (suggests) {
   await page.click(`${LAYER}thead th:nth-child(${col2 + 1}) .table-popup__colhead-input`);
   await page.keyboard.type("rati"); await w(400);
   const mixed = await ev(() => [...document.querySelector(".solenoid-popup-layer").shadowRoot.querySelectorAll(".table-popup__suggest-item")].map((x) => x.textContent));
-  check("A name typed two ways is offered with both types", mixed.some((t) => /^rating/.test(t) && /Text or Number/.test(t)), mixed.join(", "));
+  check("A name typed two ways is offered with both type glyphs", mixed.some((t) => t === "ratingT#"), mixed.join(", "));
   await page.keyboard.press("ArrowDown"); await page.keyboard.press("Enter"); await w(300);
   const mixedPick = await ev((c) => { const th = document.querySelector(".solenoid-popup-layer").shadowRoot.querySelectorAll("thead th")[c]; return [th.querySelector(".table-popup__colhead-input").value, th.querySelector(".table-popup__coltype").title]; }, col2);
   check("Picking it sets the name and leaves the column's type alone", mixedPick[0] === "rating" && mixedPick[1] === typeBefore, mixedPick.join(" · "));

@@ -687,3 +687,23 @@ body .dmv-root button.dmv-text-btn:not(.clickable-icon):not(.mod-cta):not(.mod-w
 .is-phone .dmv-zero { top: 3px; bottom: 3px; }
 .is-phone .dmv-rank-row.is-top { box-shadow: inset 2px 0 0 var(--sol-emphasis); background: transparent; }
 .is-phone .dmv-rank-row.is-top > * { box-shadow: none; }
+
+/* ── Criterion name suggestions ──────────────────────────── */
+
+/* A name typed more than one way shows each type's glyph, as Solenoid's type button draws it. */
+.dmv-suggest-types { display: inline-flex; gap: 2px; margin-left: 8px; vertical-align: middle; }
+.dmv-typeglyph {
+	width: 16px;
+	height: 16px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-family: var(--font-monospace);
+	font-size: 10px;
+	font-weight: 700;
+	line-height: 1;
+	color: var(--sol-frame, var(--text-accent));
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border-hover);
+	border-radius: 4px;
+}

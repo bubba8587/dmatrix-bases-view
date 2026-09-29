@@ -79,7 +79,8 @@ Both views have two controls, saved with the view:
 - Click a value to edit it. **Enter** saves and moves down the column, and **↑** and **↓** move up and down, like a spreadsheet. The rows keep still while you type and take their new ranks when you leave the table.
 - A blank cell is dashed and shows, in italics, the value it is scored as.
 - In a weight, **↑** and **↓** step it by 1, or by 0.1 with **Shift**.
-- **Add criterion** under the table adds a new criterion. It starts counting once an option has a value for it.
+- **Add criterion** under the table adds a new criterion. It starts counting once an option has a value for it. As you type, it suggests number and checkbox columns you have already typed in other Frames in the vault, the way Obsidian suggests property names. Solenoid Properties' **Suggest column names** setting turns this off.
+- The **Scores** chip beside **Weights** opens every option's scores as one Frame in Solenoid Properties' editor: an Option column, then a column per score. Edit it like a spreadsheet, paste into it as CSV, or change a column's type, and **Save** writes each row back to its note's scores Frame. Only the notes whose row changed are touched, and a blank cell on a note that never had that column stays out of the note. Renaming a column renames it in every note and in the weights, and removing the last column removes it everywhere, as **Rename** and **Remove criterion** do. A row whose Option doesn't match a note in the base isn't written; add a note to the base to add an option.
 - Click a criterion's name for **Rename**, **Lower is better** and **Remove criterion**. Rename and Remove change every note's scores Frame and the weights row.
 - Click an option to open its note, **Ctrl**-hover for a preview, or right-click for the file menu.
 - The chip beside **Weights** opens the weights Frame in Solenoid Properties' editor. If there is no weights Frame yet, **Create weights** adds one with every criterion at 1.
@@ -140,9 +141,9 @@ The view works on mobile. A narrow table keeps Rank, Option and Score in place a
 - `npm test` runs the scoring, Frame and conversion tests.
 - `npm run lint` runs Obsidian's plugin-review rules (`eslint-plugin-obsidianmd`).
 - `SOLENOID=../solenoid npm run parity` checks the scoring against Solenoid's own engine. It bundles Solenoid's Decision Matrix and Frame typing from a Solenoid checkout and compares criteria, scores, ranks and contributions on thousands of random decisions with stray values, column types, odd weights and Norm spellings. Blanks are filled with medians on Solenoid's side first, so it checks everything except that one rule. It exits non-zero on any disagreement.
-- `SP=<a Solenoid Properties build folder> npm run e2e` runs the plugin in a private Obsidian (Linux with Xvfb; `OBSIDIAN` points at the binary). It makes 42 feature checks, from rendering and editing to criterion edits, view options, writing the result, two views at once and Solenoid Properties switched off, then converts 0.7's own example. It exits non-zero on any failure or console error. Run it against a Solenoid Properties build with its plugin API and against 0.1.5, which has none, since the view supports both.
+- `SP=<a Solenoid Properties build folder> npm run e2e` runs the plugin in a private Obsidian (Linux with Xvfb; `OBSIDIAN` points at the binary). It makes 54 feature checks, from rendering and editing to criterion edits, the joined Scores frame and its write-back, name suggestions, view options, writing the result, two views at once and Solenoid Properties switched off, then converts 0.7's own example. It exits non-zero on any failure or console error. Run it against a Solenoid Properties build with its plugin API and against 0.1.5, which has none, since the view supports both.
 
-The view uses Solenoid Properties' plugin API (version 1) to show its Frame chip and editor and to read and record column types. It falls back to the methods older releases have.
+The view uses Solenoid Properties' plugin API (version 1) to show its Frame chips and editor, to read and record column types, and for the column names Add criterion suggests. It falls back to the methods older releases have, which suggest nothing.
 
 ## License
 

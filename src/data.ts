@@ -16,7 +16,7 @@ export interface MatrixData {
 	cells: Map<string, { cells: Cell[]; raw: string[] }>;
 }
 
-function titleOf(entry: BasesEntry): string {
+export function titleOf(entry: BasesEntry): string {
 	const title = entry.getValue('note.title')?.toString().trim();
 	return title && title !== 'null' ? title : entry.file.basename;
 }

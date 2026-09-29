@@ -67,8 +67,15 @@
 	color: var(--sol-ink-error);
 }
 
-.dmv-weights {
+/* The Scores and Weights chips, pushed right together and wrapping as a pair. */
+.dmv-frames {
+	display: flex;
+	align-items: center;
+	gap: 6px 14px;
 	margin-left: auto;
+	min-width: 0;
+}
+.dmv-weights {
 	min-width: 0;
 }
 /* The decision note's name beside the chip: one line, cut short rather than broken mid-word. */
@@ -658,7 +665,7 @@ body .dmv-root button.dmv-text-btn:not(.clickable-icon):not(.mod-cta):not(.mod-w
 
 /* ── Phone ───────────────────────────────────────────────── */
 
-.is-phone .dmv-weights { margin-left: 0; }
+.is-phone .dmv-frames { margin-left: 0; }
 
 /* Each ranking row is its own small grid: rank, name and score on a line, the bar full width under them. */
 .is-phone .dmv-ranking { display: flex; flex-direction: column; align-items: stretch; }

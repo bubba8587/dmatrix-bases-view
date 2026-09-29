@@ -9,12 +9,15 @@
  */
 import type { App } from 'obsidian';
 import { parsePluginColumnTypes } from './frame.ts';
-import type { ColumnPicks, PluginColumnTypes } from './frame.ts';
+import type { ColumnPicks, ColumnType, PluginColumnTypes } from './frame.ts';
 
 export const SOLENOID_ID = 'solenoid-properties';
 export const FRAME_TYPE = 'solenoid-frame';
 
 const FRAME_KIND = { id: FRAME_TYPE, name: 'Frame', shape: 'frame' } as const;
+
+/** A column name typed somewhere in the vault, as Solenoid Properties suggests it. */
+export interface ColumnName { name: string; type: ColumnType; properties: string[] }
 
 /** Solenoid Properties' `api`, version 1. */
 interface SolenoidApiV1 {
@@ -24,6 +27,8 @@ interface SolenoidApiV1 {
 	release(el: Element): void;
 	columnTypes(key: string): ColumnPicks;
 	setColumnTypes(key: string, types: ColumnPicks, replace?: boolean): Promise<void>;
+	/** Newer releases only; [] when the user turned Suggest column names off. */
+	columnNames?(): ColumnName[];
 }
 
 /** What releases before the API have. */
@@ -42,6 +47,8 @@ export interface Solenoid {
 	setColumnTypes(key: string, types: ColumnPicks, replace?: boolean): Promise<void>;
 	/** The workspace event a column-type change triggers, when this release has one. */
 	columnTypesEvent: string | null;
+	/** The column names Solenoid Properties suggests; [] from a release without them or with them turned off. */
+	columnNames(): ColumnName[];
 }
 
 interface PluginRegistry {
@@ -60,6 +67,7 @@ function fromApi(api: SolenoidApiV1): Solenoid {
 		columnTypes: (keys) => Promise.resolve(Object.fromEntries(keys.map(k => [k, api.columnTypes(k)]))),
 		setColumnTypes: (key, types, replace) => api.setColumnTypes(key, types, replace),
 		columnTypesEvent: api.COLUMN_TYPES_EVENT,
+		columnNames: () => (typeof api.columnNames === 'function' ? api.columnNames() : []),
 	};
 }
 
@@ -73,6 +81,7 @@ function fromLegacy(plugin: LegacyPlugin): Solenoid {
 		},
 		setColumnTypes: async (key, types, replace) => { await plugin.setColumnTypes?.(key, types, replace); },
 		columnTypesEvent: null,
+		columnNames: () => [],
 	};
 }
 

@@ -146,9 +146,85 @@ check("Clicking an option opens its note", await ev(() => /Laptop [A-D]/.test(ap
 await openDecision();
 
 // Frame editor from the chip
-await ev((M) => document.querySelector(`${M} .dmv-chip .solenoid-property-chip`).shadowRoot.querySelector("button").click(), M); await w(1200);
+await ev((M) => document.querySelector(`${M} .dmv-weights .dmv-chip .solenoid-property-chip`).shadowRoot.querySelector("button").click(), M); await w(1200);
 check("The Weights chip opens Solenoid's Frame editor", await ev(() => /^weights/i.test(document.querySelector(".solenoid-popup-layer")?.shadowRoot?.querySelector(".sol-popup__header")?.textContent ?? "")));
 await page.keyboard.press("Escape"); await w(500);
+
+// The Scores chip: every option's scores in one Frame, and a Save writes each row back to its note
+const LAYER = ".solenoid-popup-layer >>> ";
+const popup = () => ev(() => {
+  const root = document.querySelector(".solenoid-popup-layer")?.shadowRoot;
+  return {
+    title: root?.querySelector(".sol-popup__header")?.textContent ?? "",
+    heads: [...(root?.querySelectorAll(".table-popup__colhead-input") ?? [])].map((i) => i.value),
+    rows: [...(root?.querySelectorAll(".table-popup__grid tbody tr") ?? [])].map((tr) => [...tr.querySelectorAll("td input")].map((i) => i.value)),
+  };
+});
+const openScores = async () => { await ev((M) => document.querySelector(`${M} .dmv-scores .solenoid-property-chip`).shadowRoot.querySelector("button").click(), M); await w(1200); };
+const popupSave = async () => { await ev(() => [...document.querySelector(".solenoid-popup-layer").shadowRoot.querySelectorAll("button")].find((x) => x.textContent === "Save").click()); await w(2500); };
+const scoresTypes = () => ev(async () => { const p = app.plugins.getPlugin("solenoid-properties"); return p.api ? p.api.columnTypes("scores") : (await p.loadData()).columnTypes.scores; });
+check("A Scores chip sits beside the Weights chip", await ev((M) => { const s = document.querySelector(`${M} .dmv-scores`); return !!s?.querySelector(".solenoid-property-chip") && s.nextElementSibling?.classList.contains("dmv-weights"); }, M));
+await openScores();
+const joined = await popup();
+const criteria = await heads();
+check("The Scores chip opens every option's scores in one Frame", /^scores/i.test(joined.title) && joined.heads[0] === "Option" && criteria.every((c) => joined.heads.includes(c)) && joined.rows.length === 4, `${joined.heads.join(",")} · ${joined.rows.map((r) => r[0]).join(",")}`);
+{
+  const row = joined.rows.findIndex((r) => r[0] === "Laptop A");
+  const col = joined.heads.indexOf(criteria[0]);
+  const before = { b: (await fm("Laptop B")).scores[0], a: (await fm("Laptop A")).scores[0] };
+  await page.click(`${LAYER}.table-popup__grid tbody tr:nth-child(${row + 1}) td:nth-child(${col + 2}) input`);
+  await page.keyboard.down("Control"); await page.keyboard.press("a"); await page.keyboard.up("Control"); await page.keyboard.type("42"); await page.keyboard.press("Tab");
+  await popupSave();
+  const a = (await fm("Laptop A")).scores[0], b = (await fm("Laptop B")).scores[0];
+  check("Saving the joined frame writes the edit to that option's note", a[criteria[0]] === 42 && Object.keys(a).join() === Object.keys(before.a).join(), JSON.stringify(a));
+  check("Notes whose row did not change are left as they were", JSON.stringify(b) === JSON.stringify(before.b));
+  check("The Option column's type is not recorded as a score column", !("Option" in (await scoresTypes())), JSON.stringify(await scoresTypes()));
+}
+{
+  await openScores();
+  const last = (await popup()).heads.length - 1;
+  const from = (await popup()).heads[last], to = `${from} x`;
+  const hadType = (await scoresTypes())[from];
+  await page.click(`${LAYER}thead th:nth-child(${last + 2}) .table-popup__colhead-input`);
+  await page.keyboard.press("End"); await page.keyboard.type(" x"); await page.keyboard.press("Tab");
+  await popupSave();
+  const notes = await Promise.all(["Laptop A", "Laptop B", "Laptop C", "Laptop D"].map(fm));
+  const t = await scoresTypes();
+  check("Renaming a column in the joined frame renames it in every note, its weight and its type", notes.every((n) => !(from in n.scores[0])) && notes.some((n) => to in n.scores[0]) && to in (await weights()) && !(from in (await weights())) && t[to] === hadType && !(from in t), `${from} → ${to}`);
+  await openScores();
+  await page.click(`${LAYER}thead th:nth-child(${last + 2}) .table-popup__colhead-input`);
+  await page.keyboard.press("End"); for (let i = 0; i < 2; i++) await page.keyboard.press("Backspace"); await page.keyboard.press("Tab");
+  await popupSave();
+  check("Renaming it back restores the criterion", (await heads()).includes(from) && from in (await weights()));
+}
+const suggests = await ev(() => typeof app.plugins.getPlugin("solenoid-properties")?.api?.columnNames === "function");
+if (suggests) {
+  // A column typed under another Frame property, the way the editor records it.
+  await ev(async () => { app.metadataTypeManager.setType("specs", "solenoid-frame"); await app.plugins.getPlugin("solenoid-properties").api.setColumnTypes("specs", { weight_kg: "number", maker: "string" }); }); await w(500);
+  await openScores();
+  await ev(() => [...document.querySelector(".solenoid-popup-layer").shadowRoot.querySelectorAll("button")].find((x) => x.textContent === "Add Column").click()); await w(300);
+  const col = (await popup()).heads.length;
+  await page.click(`${LAYER}thead th:nth-child(${col + 1}) .table-popup__colhead-input`);
+  await page.keyboard.type("weight_"); await w(400);
+  const offered = await ev(() => [...document.querySelector(".solenoid-popup-layer").shadowRoot.querySelectorAll(".table-popup__suggest-item")].map((x) => x.textContent));
+  check("A Frame header suggests column names typed in the vault", offered.includes("weight_kg"), offered.join(", "));
+  await page.keyboard.press("ArrowDown"); await page.keyboard.press("Enter"); await w(300);
+  const picked = await ev((c) => { const th = document.querySelector(".solenoid-popup-layer").shadowRoot.querySelectorAll("thead th")[c]; return [th.querySelector(".table-popup__colhead-input").value, th.querySelector(".table-popup__coltype").title]; }, col);
+  check("Picking a suggested name sets the column's type", picked[0] === "weight_kg" && /Number/.test(picked[1]), picked.join(" · "));
+  await ev(() => [...document.querySelector(".solenoid-popup-layer").shadowRoot.querySelectorAll("button")].find((x) => x.textContent === "Cancel").click()); await w(500);
+  await ev((M) => [...document.querySelectorAll(`${M} .dmv-text-btn`)].find((x) => x.textContent === "Add criterion").click(), M); await w(400);
+  await page.keyboard.type("wei"); await w(600);
+  const listed = await ev(() => [...document.querySelectorAll(".suggestion-container .suggestion-item")].map((x) => x.textContent));
+  check("Add criterion suggests number columns typed elsewhere, not text or weights columns", listed.includes("weight_kg") && !listed.includes("maker") && !listed.includes("Weight"), listed.join(", "));
+  await page.keyboard.type("ght_"); await w(400); await page.keyboard.press("Enter"); await w(2000);
+  check("Picking a suggestion adds that criterion", "weight_kg" in (await weights()) && (await heads()).includes("weight_kg"), `${Object.keys(await weights()).join(",")} · ${(await heads()).join(",")}`);
+  if ((await heads()).includes("weight_kg")) {
+    await openHeadMenu("weight_kg"); await menuPick("Remove criterion");
+    await ev(() => [...document.querySelectorAll(".modal button")].find((x) => x.textContent === "Remove").click()); await w(2000);
+  }
+  const off = await ev(async () => { const p = app.plugins.getPlugin("solenoid-properties"); await p.setSuggestColumns(false); const n = p.api.columnNames().length; await p.setSuggestColumns(true); return n; });
+  check("Turning Suggest column names off empties the list", off === 0);
+}
 
 // View options: another weights property, and a picked weights note
 await ev(async () => { const f = app.vault.getAbstractFileByPath("Decision Matrix Examples/laptop-comparison.base"); await app.vault.process(f, (s) => s.replace("    name: Laptop Matrix\n", "    name: Laptop Matrix\n    weightsProperty: w2\n")); }); await w(2500);

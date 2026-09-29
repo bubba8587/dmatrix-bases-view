@@ -9,7 +9,7 @@ import type { QueryController } from 'obsidian';
 import { formatScore } from './scoring.ts';
 import type { Normalize } from './scoring.ts';
 import type { DecisionItem, ItemGroup, MatrixCriterion } from './types.ts';
-import { DecisionView, NORMALIZE_OPTIONS, draftInput, rankText, showMenu } from './view.ts';
+import { CriterionSuggest, DecisionView, NORMALIZE_OPTIONS, draftInput, rankText, showMenu } from './view.ts';
 import type { Model } from './view.ts';
 
 const cellKey = (item: DecisionItem, c: MatrixCriterion) => `cell|${item.id}|${c.name}`;
@@ -65,7 +65,10 @@ export class DecisionMatrixView extends DecisionView {
 		fitColumns(table);
 		if (!m.canEditCriteria) return;
 		const foot = tbody.createEl('tr', { cls: 'dmv-new-row' }).createEl('td', { cls: 'dmv-td', attr: { colspan: String(span) } }).createDiv('dmv-foot');
-		if (this.naming === '') this.nameField(foot, '', 'New criterion', (name) => this.addCriterion(name));
+		if (this.naming === '') {
+			const input = this.nameField(foot, '', 'New criterion', (name) => this.addCriterion(name));
+			new CriterionSuggest(this.app, input, () => this.criterionSuggestions());
+		}
 		else textButton(foot, 'Add criterion', () => { this.naming = ''; this.render(); });
 	}
 
@@ -133,7 +136,7 @@ export class DecisionMatrixView extends DecisionView {
 	}
 
 	/** A criterion name field: Enter commits, Escape or leaving it cancels. */
-	private nameField(parent: HTMLElement, value: string, label: string, onCommit: (name: string) => void): void {
+	private nameField(parent: HTMLElement, value: string, label: string, onCommit: (name: string) => void): HTMLInputElement {
 		const done = () => { this.naming = null; this.render(); };
 		const input = draftInput(parent, 'dmv-input dmv-name-input', value, (name) => {
 			this.naming = null;
@@ -143,6 +146,7 @@ export class DecisionMatrixView extends DecisionView {
 		input.addEventListener('keydown', (e) => { if (e.key === 'Escape') done(); });
 		input.addEventListener('blur', () => { if (this.naming !== null) done(); });
 		window.setTimeout(() => { input.focus(); input.select(); });
+		return input;
 	}
 
 	private renderWeightInput(parent: HTMLElement, c: MatrixCriterion, j: number, weight: number, editable: boolean): void {

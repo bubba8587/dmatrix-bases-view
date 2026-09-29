@@ -1,16 +1,19 @@
 /**
  * What both views share: the Solenoid Properties check, the criteria and scores, the Weights frame
- * on the decision note, the toolbar (Normalize, Output, the Weights chip, Copy as Markdown), the
+ * on the decision note, the toolbar (Normalize, Output, the Scores and Weights chips, Copy as Markdown), the
  * leader line, option links, criterion edits, and focus that survives a re-render.
  */
-import { BasesView, Menu, Modal, Notice, TFile, setIcon } from 'obsidian';
+import { AbstractInputSuggest, BasesView, Menu, Modal, Notice, TFile, setIcon } from 'obsidian';
 import type { Events } from 'obsidian';
 import type { App, BasesAllOptions, BasesEntry, BasesEntryGroup, HoverParent, HoverPopover, QueryController } from 'obsidian';
-import { groupsOf, readMatrix } from './data.ts';
+import { groupsOf, readMatrix, titleOf } from './data.ts';
+import { joinScores, splitScores } from './joined.ts';
+import type { Joined, JoinedOption } from './joined.ts';
 import type { ColumnType, PluginColumnTypes } from './frame.ts';
 import { fillBlanks, flipWeights, formatScore, leadOf, scoreMatrix } from './scoring.ts';
 import type { Detail, MatrixResult, Normalize } from './scoring.ts';
 import { assignFrameType, solenoid } from './solenoid.ts';
+import type { ColumnName } from './solenoid.ts';
 import { DEFAULT_RESULT_PROPERTY, DEFAULT_SCORES_PROPERTY, DEFAULT_WEIGHTS_PROPERTY } from './types.ts';
 import { resultFrame } from './result.ts';
 import type { DecisionItem, ItemGroup, MatrixCriterion } from './types.ts';
@@ -308,6 +311,58 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		}).open();
 	}
 
+	/**
+	 * Splits the joined Scores frame the editor saved back into each note's Scores frame. A renamed or
+	 * removed column takes its weight row and column type along, as Rename and Remove do.
+	 */
+	private async writeJoined(joined: Joined, options: JoinedOption[], entries: BasesEntry[], saved: unknown): Promise<void> {
+		const key = this.scoresProperty;
+		const split = splitScores(joined, saved, options);
+		if (split.writes.length) assignFrameType(this.app, key);
+		for (const w of split.writes) {
+			await this.app.fileManager.processFrontMatter(entries[w.index].file, (fm: Record<string, unknown>) => { fm[key] = w.frame; });
+		}
+		// The editor records every column it saved, the Option column too, and keeps a renamed column's old pick.
+		await this.replaceColumnTypes(key, p => {
+			delete p[joined.optionKey];
+			for (const [from, to] of split.renames) {
+				if (p[from] && !p[to]) p[to] = p[from];
+				delete p[from];
+			}
+			for (const name of split.dropped) delete p[name];
+		});
+		if ((split.renames.length || split.dropped.length) && this.weightsFrame(this.weightsNote())) {
+			const crit = (name: string) => ({ name, label: name });
+			await this.editWeights(f => {
+				for (const [from, to] of split.renames) f = renameCriterion(f, crit(from), to, this.weightPicks);
+				for (const name of split.dropped) f = removeCriterion(f, crit(name), this.weightPicks);
+				return f;
+			});
+		}
+		if (split.unmatched.length) {
+			const names = split.unmatched.map(t => (t ? t : '(blank)')).join(', ');
+			new Notice(`Not written, as no option is named ${names}. Add a note to the base to add an option.`);
+		}
+	}
+
+	/**
+	 * Names Solenoid Properties suggests for a new criterion: number and checkbox columns typed under
+	 * some property other than a Weights or result frame (this view's, or any shaped like one), and not
+	 * yet criteria here.
+	 */
+	protected async criterionSuggestions(): Promise<ColumnName[]> {
+		const sp = solenoid(this.app);
+		const names = sp?.columnNames() ?? [];
+		const keys = [...new Set(names.flatMap(o => o.properties))];
+		const picks = keys.length ? await sp?.columnTypes(keys) ?? {} : {};
+		const bookkeeping = new Set([this.weightsProperty, this.resultProperty, ...keys.filter(k => isBookkeeping(Object.keys(picks[k] ?? {})))]);
+		const taken = new Set((this.model?.criteria ?? []).map(c => c.name.trim().toLowerCase()));
+		return names.filter(o =>
+			(o.type === 'number' || o.type === 'logical')
+			&& o.properties.some(p => !bookkeeping.has(p))
+			&& !taken.has(o.name.trim().toLowerCase()));
+	}
+
 	// ── Converting a 0.7 decision ─────────────────────────────
 
 	private conversionPlan(): ConvertPlan {
@@ -430,9 +485,10 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 			const empty = root.createDiv('dmv-state');
 			empty.createDiv({ text: `No criteria yet. Give the notes a ${this.scoresProperty} Frame with a number column per criterion.` });
 			if (canEditCriteria) {
-				draftInput(empty.createDiv('dmv-state-action'), 'dmv-input dmv-name-input', '', (name) => this.addCriterion(name), {
+				const input = draftInput(empty.createDiv('dmv-state-action'), 'dmv-input dmv-name-input', '', (name) => this.addCriterion(name), {
 					inputmode: 'text', placeholder: 'Criterion name', 'aria-label': 'New criterion', 'data-dmv-key': 'new-criterion',
 				});
+				new CriterionSuggest(this.app, input, () => this.criterionSuggestions());
 			}
 			this.restoreFocus(memo);
 			return;
@@ -532,7 +588,22 @@ export abstract class DecisionView extends BasesView implements HoverParent {
 		detailGroup.createSpan({ text: 'Output', cls: 'dmv-caption' });
 		segToggle(detailGroup, DETAIL_OPTIONS, this.detail, (v) => { this.config.set('detail', v); this.render(); });
 
-		const weights = bar.createDiv('dmv-field dmv-weights');
+		const frames = bar.createDiv('dmv-frames');
+		const entries = this.entries();
+		if (entries.length > 0) {
+			const scores = frames.createDiv('dmv-field dmv-scores');
+			scores.createSpan({ text: 'Scores', cls: 'dmv-caption', attr: { title: 'Every option\'s scores in one Frame. Save writes each row back to its note.' } });
+			const options: JoinedOption[] = entries.map(e => ({
+				title: titleOf(e),
+				scores: this.app.metadataCache.getFileCache(e.file)?.frontmatter?.[this.scoresProperty] as unknown,
+			}));
+			const joined = joinScores(options);
+			solenoid(this.app)?.frameChip(scores.createSpan('dmv-chip'), this.scoresProperty, joined.rows, (next) => {
+				void this.writeJoined(joined, options, entries, next);
+			});
+		}
+
+		const weights = frames.createDiv('dmv-field dmv-weights');
 		weights.createSpan({ text: 'Weights', cls: 'dmv-caption' });
 		const key = this.weightsProperty;
 		if (!note) {
@@ -736,4 +807,37 @@ export function draftInput(
 
 export function rankText(rank: number, tied: boolean): string {
 	return tied ? `=${rank}` : String(rank);
+}
+
+/** A Weights frame's columns (Criterion, Weight, Norm) or a written result's (Option, Score, Rank and contributions). */
+function isBookkeeping(columns: string[]): boolean {
+	const cols = new Set(columns.map(c => c.trim().toLowerCase()));
+	if (cols.size === 0) return false;
+	const weights = [...cols].every(c => c === 'criterion' || c === 'weight' || c === 'norm');
+	return weights || (cols.has('option') && cols.has('score') && cols.has('rank'));
+}
+
+/** Suggests criterion names as the field is typed in; a pick commits the field. */
+export class CriterionSuggest extends AbstractInputSuggest<ColumnName> {
+	constructor(app: App, private input: HTMLInputElement, private names: () => Promise<ColumnName[]>) {
+		super(app, input);
+	}
+
+	protected async getSuggestions(query: string): Promise<ColumnName[]> {
+		const q = query.trim().toLowerCase();
+		if (!q) return [];
+		const all = await this.names();
+		const starts = all.filter(o => o.name.toLowerCase().startsWith(q));
+		return [...starts, ...all.filter(o => !starts.includes(o) && o.name.toLowerCase().includes(q))];
+	}
+
+	renderSuggestion(option: ColumnName, el: HTMLElement): void {
+		el.setText(option.name);
+	}
+
+	selectSuggestion(option: ColumnName): void {
+		this.input.value = option.name;
+		this.close();
+		this.input.blur();
+	}
 }
